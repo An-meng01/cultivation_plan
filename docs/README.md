@@ -52,7 +52,7 @@
 ## 项目文件架构
 
 ```
-study-planner/
+<project-root>/
 ├── docker-compose.yml              # 容器编排：PostgreSQL + 后端 + 前端
 ├── .gitignore
 │
