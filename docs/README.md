@@ -80,7 +80,7 @@
 │       ├── services/
 │       │   └── api.ts              # Axios 实例 + 全部 API 接口 + TypeScript 类型
 │       ├── hooks/
-│       │   ├── useTasks.ts         # 任务 CURD Hook
+│       │   ├── useTasks.ts         # 任务 CRUD Hook
 │       │   └── useClockRecords.ts  # 打卡记录 Hook
 │       └── utils/
 │           ├── priorityHelper.ts   # 优先级标签/颜色映射
