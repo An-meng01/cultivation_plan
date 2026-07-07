@@ -7,7 +7,7 @@
                 "D:/tools/vcpkg/installed/x64-windows/include"
             ],
             "defines": [],
-            "compilerPath": "cl.exe",
+            "compilerPath": "D:/tools/perl/c/bin/g++.exe",
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "windows-msvc-x64",
