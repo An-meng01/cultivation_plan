@@ -9,5 +9,3 @@ __pycache__/
 *.swp
 *.swo
 .vscode/
-!/.vscode/settings.json
-!/.vscode/c_cpp_properties.json
