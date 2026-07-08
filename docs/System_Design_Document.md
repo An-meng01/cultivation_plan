@@ -81,11 +81,11 @@ flowchart TD
 
     M1 --> M1a[自定义任务创建]
     M1 --> M1b[系统推荐任务]
-    M1 --> M1c[任务属性设置\n主题/完成时间/优先级/复习提醒]
+    M1 --> M1c["任务属性设置<br/>主题/完成时间/优先级/复习提醒"]
     M1 --> M1d[任务 CRUD]
 
-    M2 --> M2a[差异化提醒\n按优先级+剩余时间]
-    M2 --> M2b[复习提醒\n遗忘曲线(规划)]
+    M2 --> M2a["差异化提醒<br/>按优先级+剩余时间"]
+    M2 --> M2b["复习提醒<br/>遗忘曲线(规划)"]
 
     M3 --> M3a[任务打卡]
     M3 --> M3b[打卡记录查询]
@@ -217,15 +217,15 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[定时器每120s触发] --> B[查询候选任务\ncompleted=FALSE\nneed_review_reminder=TRUE\ndeadline∈(NOW-1h, NOW+1h)]
+    A[定时器每120s触发] --> B["查询候选任务<br/>completed=FALSE<br/>need_review_reminder=TRUE<br/>deadline in (NOW-1h, NOW+1h)"]
     B --> C{候选集为空?}
     C -->|是| Z[结束]
     C -->|否| D[取下一任务 t]
-    D --> E[interval = map(t.priority)\n3→1,2→2,1→6,0→12]
-    E --> F{pollCount % interval == 0\n且 !reminded(t.id,batch)?}
+    D --> E["interval = map(t.priority)<br/>3->1, 2->2, 1->6, 0->12"]
+    E --> F{"pollCount % interval == 0<br/>且 !reminded(t.id, batch)?"}
     F -->|否| G{还有任务?}
-    F -->|是| H[触发提醒\n日志/推送]
-    H --> I[标记 reminded(t.id,batch)]
+    F -->|是| H["触发提醒<br/>日志/推送"]
+    H --> I["标记 reminded(t.id, batch)"]
     I --> G
     G -->|是| D
     G -->|否| Z
@@ -256,12 +256,12 @@ procedure pollReminder(pollCount):
 
 ```mermaid
 flowchart TD
-    A[接收统计请求 start,end] --> B[overview: 聚合总任务/已完成]
-    B --> C[completionRate = completed/total*100\n(total=0 则 0)]
+    A[接收统计请求 start,end] --> B["overview: 聚合总任务/已完成"]
+    B --> C["completionRate = completed/total*100<br/>(total=0 则 0)"]
     A --> D[daily: 按 DATE 分组]
-    D --> E[added = COUNT(created_at)]
-    D --> F[completed = COUNT(completed_at)]
-    E --> G[rate = completed/(added+completed)*100]
+    D --> E["added = COUNT(created_at)"]
+    D --> F["completed = COUNT(completed_at)"]
+    E --> G["rate = completed/(added+completed)*100"]
     A --> H[priorities: 按 priority 分组 COUNT]
     C --> I[返回 JSON]
     G --> I
