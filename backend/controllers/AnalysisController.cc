@@ -18,7 +18,7 @@ void AnalysisController::overview(
     const HttpRequestPtr& req,
     std::function<void(const HttpResponsePtr&)>&& callback) {
     services::StatsService svc;
-    auto data = svc.getOverview(utils::getUserId(req));
+    auto data = svc.getOverview(auth_utils::getUserId(req));
     auto resp = HttpResponse::newHttpJsonResponse(ok(data));
     callback(resp);
 }
@@ -42,7 +42,7 @@ void AnalysisController::daily(
                           ? params.at("end") : yearEnd;
 
     services::StatsService svc;
-    auto data = svc.getDailyStats(start, end, utils::getUserId(req));
+    auto data = svc.getDailyStats(start, end, auth_utils::getUserId(req));
     auto resp = HttpResponse::newHttpJsonResponse(ok(data));
     callback(resp);
 }
@@ -51,7 +51,7 @@ void AnalysisController::priorities(
     const HttpRequestPtr& req,
     std::function<void(const HttpResponsePtr&)>&& callback) {
     services::StatsService svc;
-    auto data = svc.getPriorityDistribution(utils::getUserId(req));
+    auto data = svc.getPriorityDistribution(auth_utils::getUserId(req));
     auto resp = HttpResponse::newHttpJsonResponse(ok(data));
     callback(resp);
 }

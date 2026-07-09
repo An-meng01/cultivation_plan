@@ -21,7 +21,7 @@ static Json::Value fail(int code, const std::string& msg) {
 void ReminderController::list(
     const HttpRequestPtr& req,
     std::function<void(const HttpResponsePtr&)>&& callback) {
-    int userId = utils::getUserId(req);
+    int userId = auth_utils::getUserId(req);
     auto db = app().getDbClient("default");
 
     auto result = db->execSqlSync(
@@ -30,7 +30,7 @@ void ReminderController::list(
         userId);
 
     Json::Value arr(Json::arrayValue);
-    for (auto& row : result) {
+    for (const auto& row : result) {
         Json::Value j;
         j["id"] = row["id"].as<int>();
         j["taskId"] = row["task_id"].isNull() ? Json::Value() : row["task_id"].as<int>();
@@ -49,7 +49,7 @@ void ReminderController::ack(
     const HttpRequestPtr& req,
     std::function<void(const HttpResponsePtr&)>&& callback,
     int id) {
-    int userId = utils::getUserId(req);
+    int userId = auth_utils::getUserId(req);
     auto db = app().getDbClient("default");
 
     db->execSqlSync(

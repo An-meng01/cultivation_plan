@@ -28,8 +28,8 @@ void AuthFilter::doFilter(const HttpRequestPtr& req,
     }
 
     // 解析并固化用户身份，供下游控制器统一读取，消除硬编码 user_id=1
-    int uid = utils::getUserId(req);
-    req->setAttribute("user_id", std::to_string(uid));
+    int uid = auth_utils::getUserId(req);
+    req->attributes()->insert("user_id", std::to_string(uid));
 
     fccb();
 }

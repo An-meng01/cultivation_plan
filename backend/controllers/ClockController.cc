@@ -30,7 +30,7 @@ void ClockController::clockIn(
     }
 
     int taskId = (*json)["taskId"].asInt();
-    int userId = utils::getUserId(req);
+    int userId = auth_utils::getUserId(req);
     auto db = app().getDbClient("default");
 
     auto result = db->execSqlSync(
@@ -80,7 +80,7 @@ void ClockController::getRecords(
 
     std::string taskId = params.find("taskId") != params.end() ? params.at("taskId") : "";
     std::string date = params.find("date") != params.end() ? params.at("date") : "";
-    int userId = utils::getUserId(req);
+    int userId = auth_utils::getUserId(req);
 
     auto result = db->execSqlSync(
         "SELECT id, task_id, task_title, check_in_time "
@@ -91,7 +91,7 @@ void ClockController::getRecords(
         userId, taskId, date);
 
     Json::Value arr(Json::arrayValue);
-    for (auto& row : result) {
+    for (const auto& row : result) {
         Json::Value j;
         j["id"] = row["id"].as<int>();
         j["taskId"] = row["task_id"].isNull() ? Json::Value() : row["task_id"].as<int>();
