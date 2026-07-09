@@ -30,6 +30,7 @@ export interface TaskForm {
   description?: string;
   topic?: string;
   priority?: number;
+  source?: 'custom' | 'system';
   needReviewReminder?: boolean;
   deadline?: string;
 }
@@ -41,13 +42,24 @@ export interface ClockRecord {
   checkInTime: string;
 }
 
+export interface TopicDistItem {
+  topic: string;
+  count: number;
+}
+
+export interface TopicRateItem {
+  topic: string;
+  completed: number;
+  rate: number;
+}
+
 export interface AnalysisOverview {
   totalTasks: number;
   completed: number;
   pending: number;
   completionRate: number;
-  topicDistribution: Record<string, number>;
-  topicCompletionRate: Record<string, number>;
+  topicDist: TopicDistItem[];
+  topicRate: TopicRateItem[];
 }
 
 export interface DailyStat {
@@ -101,8 +113,13 @@ export function fetchDailyStats(start: string, end: string) {
   return api.get('/analysis/daily', { params: { start, end } }) as Promise<{ code: number; data: DailyStat[] }>;
 }
 
+export interface PriorityDistItem {
+  priority: number;
+  count: number;
+}
+
 export function fetchPriorityDistribution() {
-  return api.get('/analysis/priorities') as Promise<{ code: number; data: Record<string, number> }>;
+  return api.get('/analysis/priorities') as Promise<{ code: number; data: PriorityDistItem[] }>;
 }
 
 export default api;

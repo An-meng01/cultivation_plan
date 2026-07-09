@@ -38,15 +38,15 @@ export default function Dashboard() {
 
   if (loading || !overview) return <Spin size="large" style={{ display: 'block', marginTop: 120 }} />;
 
-  const topicPieData = Object.entries(overview.topicDistribution).map(([name, value]) => ({
-    name,
-    value,
+  const topicPieData = overview.topicDist.map((item) => ({
+    name: item.topic,
+    value: item.count,
   }));
 
-  const topicStats = Object.entries(overview.topicDistribution).map(([topic, total]) => ({
-    topic,
-    total,
-    completed: Math.round(total * (overview.topicCompletionRate[topic] ?? 0) / 100),
+  const topicStats = overview.topicRate.map((item) => ({
+    topic: item.topic,
+    total: overview.topicDist.find((d) => d.topic === item.topic)?.count ?? 0,
+    completed: item.completed,
   }));
 
   return (

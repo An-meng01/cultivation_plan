@@ -31,9 +31,9 @@ export default function Analysis() {
 
   if (loading || !overview) return <Spin size="large" style={{ display: 'block', marginTop: 120 }} />;
 
-  const topicPieData = Object.entries(overview.topicDistribution).map(([name, value]) => ({
-    name,
-    value,
+  const topicPieData = overview.topicDist.map((item) => ({
+    name: item.topic,
+    value: item.count,
   }));
 
   const topicColumns = [
@@ -42,12 +42,10 @@ export default function Analysis() {
     { title: '完成率', dataIndex: 'rate', key: 'rate', render: (v: number) => `${v.toFixed(1)}%` },
   ];
 
-  const topicTableData = Object.entries(overview.topicDistribution).map(([topic, count]) => ({
-    key: topic,
-    topic,
-    count,
-    rate: overview.topicCompletionRate[topic] ?? 0,
-  }));
+  const topicTableData = overview.topicDist.map((dist) => {
+    const rateItem = overview.topicRate.find((r) => r.topic === dist.topic);
+    return { key: dist.topic, topic: dist.topic, count: dist.count, rate: rateItem?.rate ?? 0 };
+  });
 
   const dailyColumns = [
     { title: '日期', dataIndex: 'date', key: 'date' },

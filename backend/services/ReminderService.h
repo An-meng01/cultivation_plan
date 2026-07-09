@@ -5,6 +5,8 @@
 #include <thread>
 #include <atomic>
 #include <functional>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace services {
 
@@ -21,11 +23,20 @@ public:
 
 private:
     void loop(int intervalSeconds);
-    void checkDueTasks();
+    void checkDueTasks(int pollCount);
 
     std::thread worker_;
     std::atomic<bool> running_{false};
+    std::atomic<int> pollCount_{0};
     NotifyFn notify_;
+    // Dedup cache: key = "taskId_batch", value = whether already reminded
+    std::unordered_map<std::string, bool> remindedCache_;
+    // Priority -> interval mapping (rounds between reminders)
+    // 3=紧急:1, 2=高:2, 1=中:6, 0=低:12
+    static constexpr int INTERVAL_EMERGENCY = 1;
+    static constexpr int INTERVAL_HIGH = 2;
+    static constexpr int INTERVAL_MEDIUM = 6;
+    static constexpr int INTERVAL_LOW = 12;
 };
 
 }  // namespace services

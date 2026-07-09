@@ -1,5 +1,6 @@
 #include "controllers/TaskController.h"
 #include "models/Task.h"
+#include "utils/AuthContext.h"
 #include <drogon/drogon.h>
 #include <json/value.h>
 
@@ -25,39 +26,37 @@ void TaskController::getAll(
     std::function<void(const HttpResponsePtr&)>&& callback) {
     auto params = req->parameters();
     auto db = app().getDbClient("default");
+    int userId = utils::getUserId(req);
 
-    std::string sql = "SELECT * FROM tasks WHERE user_id = $1";
-    std::vector<const char*> keys = {"topic", "priority", "source", "completed"};
-    for (size_t i = 0; i < keys.size(); ++i) {
-        auto it = params.find(keys[i]);
-        if (it != params.end()) {
-            sql += " AND " + std::string(keys[i]) + " = $" + std::to_string(i + 2);
-        }
-    }
-    sql += " ORDER BY created_at DESC";
+    std::string topic = params.find("topic") != params.end() ? params.at("topic") : "";
+    std::string priority = params.find("priority") != params.end() ? params.at("priority") : "";
+    std::string source = params.find("source") != params.end() ? params.at("source") : "";
+    std::string completed = params.find("completed") != params.end() ? params.at("completed") : "";
 
-    auto f = db->execSqlCoro(sql, [](const Row& r) {
-        models::Task t;
-        t.id = r["id"].as<int>();
-        t.title = r["title"].as<std::string>();
-        t.description = r["description"].as<std::string>();
-        t.topic = r["topic"].as<std::string>();
-        t.priority = r["priority"].as<int>();
-        t.source = r["source"].as<std::string>();
-        t.needReviewReminder = r["need_review_reminder"].as<bool>();
-        t.completed = r["completed"].as<bool>();
-        t.deadline = r["deadline"].as<std::string>();
-        t.createdAt = r["created_at"].as<std::string>();
-        t.completedAt = r["completed_at"].as<std::string>();
-        return t.toJson();
-    }, 1);
+    auto result = db->execSqlSync(
+        "SELECT * FROM tasks WHERE user_id = $1"
+        " AND ($2 = '' OR topic = $2)"
+        " AND ($3 = '' OR priority = $3::int)"
+        " AND ($4 = '' OR source = $4)"
+        " AND ($5 = '' OR completed::text = $5)"
+        " ORDER BY created_at DESC",
+        userId, topic, priority, source, completed);
 
     Json::Value arr(Json::arrayValue);
-    while (!f.done()) {
-        for (auto& row : f.result()) {
-            arr.append(row);
-        }
-        f.next();
+    for (auto& row : result) {
+        models::Task t;
+        t.id = row["id"].as<int>();
+        t.title = row["title"].as<std::string>();
+        t.description = row["description"].as<std::string>();
+        t.topic = row["topic"].as<std::string>();
+        t.priority = row["priority"].as<int>();
+        t.source = row["source"].as<std::string>();
+        t.needReviewReminder = row["need_review_reminder"].as<bool>();
+        t.completed = row["completed"].as<bool>();
+        t.deadline = row["deadline"].as<std::string>();
+        t.createdAt = row["created_at"].as<std::string>();
+        t.completedAt = row["completed_at"].as<std::string>();
+        arr.append(t.toJson());
     }
 
     auto resp = HttpResponse::newHttpJsonResponse(ok(arr));
@@ -69,17 +68,18 @@ void TaskController::getOne(
     std::function<void(const HttpResponsePtr&)>&& callback,
     int id) {
     auto db = app().getDbClient("default");
-    auto f = db->execSqlCoro(
-        "SELECT * FROM tasks WHERE id = $1", id);
+    int userId = utils::getUserId(req);
+    auto result = db->execSqlSync(
+        "SELECT * FROM tasks WHERE id = $1 AND user_id = $2", id, userId);
 
-    if (f.result().empty()) {
+    if (result.empty()) {
         auto resp = HttpResponse::newHttpJsonResponse(fail(404, "not found"));
         resp->setStatusCode(k404NotFound);
         callback(resp);
         return;
     }
 
-    auto& row = f.result()[0];
+    auto& row = result[0];
     models::Task t;
     t.id = row["id"].as<int>();
     t.title = row["title"].as<std::string>();
@@ -108,17 +108,21 @@ void TaskController::create(
     }
 
     auto t = models::Task::fromJson(*json);
+    std::string source = json->get("source", "").asString();
+    if (source != "system") source = "custom";
+    t.source = source;
+    int userId = utils::getUserId(req);
     auto db = app().getDbClient("default");
 
-    auto f = db->execSqlCoro(
+    auto result = db->execSqlSync(
         "INSERT INTO tasks (user_id, title, description, topic, priority, "
         "source, need_review_reminder, deadline) "
         "VALUES ($1, $2, $3, $4, $5, $6, $7, $8::timestamp) RETURNING id",
-        t.userId, t.title, t.description, t.topic, t.priority,
-        "custom", t.needReviewReminder,
+        userId, t.title, t.description, t.topic, t.priority,
+        source, t.needReviewReminder,
         t.deadline.empty() ? nullptr : t.deadline);
 
-    int newId = f.result()[0]["id"].as<int>();
+    int newId = result[0]["id"].as<int>();
     Json::Value data;
     data["id"] = newId;
 
@@ -138,25 +142,24 @@ void TaskController::update(
         return;
     }
 
-    std::string sets;
-    std::vector<const char*> fields = {"title", "description", "topic",
-                                        "completed"};
-    for (auto& f : fields) {
-        if (json->isMember(f)) {
-            if (!sets.empty()) sets += ", ";
-            sets += std::string(f) + " = $" + std::to_string(sets.size() / 4 + 2);
-        }
-    }
-    if (json->isMember("priority")) {
-        if (!sets.empty()) sets += ", ";
-        sets += "priority = $" + std::to_string(sets.size() / 4 + 2);
-    }
+    std::string title = json->get("title", "").asString();
+    std::string description = json->get("description", "").asString();
+    std::string topic = json->get("topic", "").asString();
+    int priority = json->get("priority", -1).asInt();
+    bool completed = json->get("completed", false).asBool();
+    int userId = utils::getUserId(req);
 
     auto db = app().getDbClient("default");
-    auto f = db->execSqlCoro(
-        "UPDATE tasks SET " + sets + " WHERE id = $1", id);
+    db->execSqlSync(
+        "UPDATE tasks SET title = $3, description = $4, topic = $5,"
+        " priority = CASE WHEN $6 = -1 THEN priority ELSE $6 END,"
+        " completed = $7"
+        " WHERE id = $1 AND user_id = $2",
+        id, userId, title, description, topic, priority, completed);
 
-    auto resp = HttpResponse::newHttpJsonResponse(ok());
+    Json::Value data;
+    data["message"] = "ok";
+    auto resp = HttpResponse::newHttpJsonResponse(ok(data));
     callback(resp);
 }
 
@@ -165,7 +168,8 @@ void TaskController::remove(
     std::function<void(const HttpResponsePtr&)>&& callback,
     int id) {
     auto db = app().getDbClient("default");
-    db->execSqlCoro("DELETE FROM tasks WHERE id = $1", id);
+    int userId = utils::getUserId(req);
+    db->execSqlSync("DELETE FROM tasks WHERE id = $1 AND user_id = $2", id, userId);
     auto resp = HttpResponse::newHttpJsonResponse(ok());
     callback(resp);
 }
@@ -175,9 +179,10 @@ void TaskController::complete(
     std::function<void(const HttpResponsePtr&)>&& callback,
     int id) {
     auto db = app().getDbClient("default");
-    db->execSqlCoro(
+    int userId = utils::getUserId(req);
+    db->execSqlSync(
         "UPDATE tasks SET completed = TRUE, "
-        "completed_at = NOW() WHERE id = $1", id);
+        "completed_at = NOW() WHERE id = $1 AND user_id = $2", id, userId);
     auto resp = HttpResponse::newHttpJsonResponse(ok());
     callback(resp);
 }

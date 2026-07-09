@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   Row, Col, Button, Modal, Form, Input, Select, DatePicker, Switch, Space, message, Spin, Tooltip,
 } from 'antd';
-import { PlusOutlined, ReloadOutlined, BulbOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, BulbOutlined, FilterOutlined } from '@ant-design/icons';
 import { Task, TaskForm } from '../services/api';
 import { useTasks } from '../hooks/useTasks';
 import TaskCard from '../components/TaskCard';
@@ -13,6 +13,35 @@ export default function Tasks() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [form] = Form.useForm();
+  const [filterTopic, setFilterTopic] = useState<string>('');
+  const [filterPriority, setFilterPriority] = useState<number | undefined>(undefined);
+  const [filterSource, setFilterSource] = useState<string>('');
+  const [filterCompleted, setFilterCompleted] = useState<string>('');
+
+  const topics = useMemo(() => {
+    const s = new Set(tasks.map((t) => t.topic).filter(Boolean));
+    return Array.from(s);
+  }, [tasks]);
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (filterTopic && t.topic !== filterTopic) return false;
+      if (filterPriority !== undefined && t.priority !== filterPriority) return false;
+      if (filterSource && t.source !== filterSource) return false;
+      if (filterCompleted === 'true' && !t.completed) return false;
+      if (filterCompleted === 'false' && t.completed) return false;
+      return true;
+    });
+  }, [tasks, filterTopic, filterPriority, filterSource, filterCompleted]);
+
+  const applyFilters = () => {
+    const params: Record<string, string> = {};
+    if (filterTopic) params.topic = filterTopic;
+    if (filterPriority !== undefined) params.priority = String(filterPriority);
+    if (filterSource) params.source = filterSource;
+    if (filterCompleted) params.completed = filterCompleted;
+    load(params);
+  };
 
   useEffect(() => { loadSystemTasks(); }, [loadSystemTasks]);
 
@@ -58,6 +87,7 @@ export default function Tasks() {
       topic: t.topic,
       priority: t.priority,
       description: t.description,
+      source: 'system',
     });
     message.success(`已添加推荐任务: ${t.title}`);
   };
@@ -66,8 +96,55 @@ export default function Tasks() {
     <div>
       <Space style={{ marginBottom: 16 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建任务</Button>
-        <Button icon={<ReloadOutlined />} onClick={() => load()}>刷新</Button>
+        <Button icon={<ReloadOutlined />} onClick={() => { setFilterTopic(''); setFilterPriority(undefined); setFilterSource(''); setFilterCompleted(''); load(); }}>刷新</Button>
         <Button icon={<BulbOutlined />} onClick={loadSystemTasks}>加载系统推荐</Button>
+      </Space>
+
+      <Space style={{ marginBottom: 16 }} wrap>
+        <Select
+          allowClear
+          placeholder="主题筛选"
+          style={{ width: 130 }}
+          value={filterTopic || undefined}
+          onChange={(v) => setFilterTopic(v || '')}
+        >
+          {topics.map((t) => (
+            <Select.Option key={t} value={t}>{t}</Select.Option>
+          ))}
+        </Select>
+        <Select
+          allowClear
+          placeholder="优先级筛选"
+          style={{ width: 130 }}
+          value={filterPriority}
+          onChange={(v) => setFilterPriority(v)}
+        >
+          <Select.Option value={0}>低</Select.Option>
+          <Select.Option value={1}>中</Select.Option>
+          <Select.Option value={2}>高</Select.Option>
+          <Select.Option value={3}>紧急</Select.Option>
+        </Select>
+        <Select
+          allowClear
+          placeholder="来源筛选"
+          style={{ width: 130 }}
+          value={filterSource || undefined}
+          onChange={(v) => setFilterSource(v || '')}
+        >
+          <Select.Option value="custom">自定义</Select.Option>
+          <Select.Option value="system">系统推荐</Select.Option>
+        </Select>
+        <Select
+          allowClear
+          placeholder="状态筛选"
+          style={{ width: 130 }}
+          value={filterCompleted || undefined}
+          onChange={(v) => setFilterCompleted(v || '')}
+        >
+          <Select.Option value="false">未完成</Select.Option>
+          <Select.Option value="true">已完成</Select.Option>
+        </Select>
+        <Button icon={<FilterOutlined />} onClick={applyFilters}>筛选</Button>
       </Space>
 
       {systemTasks.length > 0 && (
@@ -88,11 +165,11 @@ export default function Tasks() {
 
       {loading ? (
         <Spin style={{ display: 'block', marginTop: 60 }} />
-      ) : tasks.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60, color: '#999' }}>暂无任务，点击上方按钮创建</div>
+      ) : filteredTasks.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 60, color: '#999' }}>暂无匹配任务，点击上方按钮创建或调整筛选条件</div>
       ) : (
         <Row gutter={[12, 12]}>
-          {tasks.map((t) => (
+          {filteredTasks.map((t) => (
             <Col key={t.id} xs={24} sm={12} lg={8} xl={6}>
               <TaskCard task={t} onComplete={done} onEdit={openEdit} onDelete={remove} />
             </Col>

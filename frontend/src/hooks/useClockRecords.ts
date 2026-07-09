@@ -16,7 +16,10 @@ export function useClockRecords() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const today = dayjs().format('YYYY-MM-DD');
+    load({ date: today });
+  }, [load]);
 
   const checkIn = useCallback(async (taskId: number) => {
     await clockIn(taskId);
