@@ -7,6 +7,7 @@ import { PlusOutlined, ReloadOutlined, BulbOutlined, CloseOutlined } from '@ant-
 import { Task, TaskForm } from '../services/api';
 import { useTasks } from '../hooks/useTasks';
 import TaskCard from '../components/TaskCard';
+import Mascot from '../components/Mascot';
 import CheckInSuccess from '../components/CheckInSuccess';
 import dayjs from 'dayjs';
 
@@ -225,7 +226,10 @@ export default function Tasks() {
       {loading ? (
         <Spin style={{ display: 'block', marginTop: 60 }} />
       ) : tasks.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60, color: '#999', marginTop: 20 }}>暂无任务，点击上方按钮创建</div>
+        <div style={{ textAlign: 'center', padding: 48, marginTop: 20 }}>
+          <Mascot size={120} />
+          <div style={{ color: '#8a8a8a', marginTop: 12 }}>暂无任务，点击「新建任务」开启你的养成之旅 🌱</div>
+        </div>
       ) : (
         <Row gutter={[12, 12]} style={{ marginTop: 20 }}>
           {tasks.map((t) => (

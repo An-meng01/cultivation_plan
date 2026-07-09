@@ -1,6 +1,7 @@
 // 成功庆祝弹层组件（可复用）：用纯 CSS 动画展示对勾与彩带，1.8 秒后自动关闭，用于打卡/创建成功反馈。
 import { useEffect } from 'react';
 import { theme } from 'antd';
+import Mascot from './Mascot';
 import './CheckInSuccess.css';
 
 interface Props {
@@ -72,6 +73,9 @@ export default function CheckInSuccess({ open, title = '打卡成功！', subTit
             />
           ))}
         </div>
+
+        {/* 庆祝精灵：跳跃动画，和彩带/对勾一起烘托成功氛围 */}
+        <Mascot size={104} mood="happy" />
 
         {/* 对勾：SVG 描边动画（先画圆、再画勾）全部由 CSS 的 @keyframes 驱动 */}
         <svg className="cis-check" viewBox="0 0 52 52">

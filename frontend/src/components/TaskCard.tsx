@@ -10,6 +10,7 @@ import { Task } from '../services/api';
 import { getPriorityLabel, getPriorityColor, getPriorityBorderColor } from '../utils/priorityHelper';
 import { formatDate, isOverdue } from '../utils/dateHelper';
 import { getNextDue, getTypeLabel } from '../utils/taskStatus';
+import { motion } from 'framer-motion';
 import dayjs from 'dayjs';
 
 const { Text, Paragraph } = Typography;
@@ -33,8 +34,13 @@ export default function TaskCard({ task, onComplete, onEdit, onDelete }: Props) 
     dayjs(task.deadline).isAfter(dayjs());
 
   return (
-    <Card
-      size="small"
+    <motion.div
+      whileHover={{ y: -4 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+      style={{ display: 'block' }}
+    >
+      <Card
+        size="small"
       style={{
         // 左边框按"优先级"上色，让优先级用颜色一眼可辨
         // （逾期/即将到期仍由下方"已逾期/即将到期"标签表示，不冲突）
@@ -97,6 +103,7 @@ export default function TaskCard({ task, onComplete, onEdit, onDelete }: Props) 
           {task.source === 'system' && <Tag color="purple">推荐</Tag>}
         </Space>
       </Space>
-    </Card>
+      </Card>
+    </motion.div>
   );
 }

@@ -6,6 +6,7 @@ import { fetchTasks, Task } from '../services/api';
 import { getCheckInStatus } from '../utils/taskStatus';
 import { useClockRecords } from '../hooks/useClockRecords';
 import CalendarHeatmap from '../components/CalendarHeatmap';
+import Mascot from '../components/Mascot';
 import CheckInSuccess from '../components/CheckInSuccess';
 
 export default function ClockIn() {
@@ -42,12 +43,18 @@ export default function ClockIn() {
     <>
       <Row gutter={[16, 16]}>
         <Col xs={24} md={14}>
-          <Spin spinning={tasksLoading || loading}>
+          {tasksLoading || loading ? (
+            <Spin spinning style={{ display: 'block', marginTop: 60 }} />
+          ) : pendingTasks.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 48 }}>
+              <Mascot size={120} mood="happy" />
+              <div style={{ color: '#8a8a8a', marginTop: 12 }}>没有需要打卡的任务，太棒了！</div>
+            </div>
+          ) : (
             <List
               style={{ paddingLeft: 8 }}
               header={<strong>待打卡任务</strong>}
               dataSource={pendingTasks}
-              locale={{ emptyText: '没有需要打卡的任务，太棒了！' }}
               renderItem={(task) => {
                 const status = getCheckInStatus(task, todayRecords);
                 const checked = status.checkedIn;
@@ -84,7 +91,7 @@ export default function ClockIn() {
                 );
               }}
             />
-          </Spin>
+          )}
         </Col>
         <Col xs={24} md={10}>
           <CalendarHeatmap records={todayRecords} />

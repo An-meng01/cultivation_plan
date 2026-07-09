@@ -1,6 +1,6 @@
 // 仪表盘首页：展示任务总览统计、学习进度条、每日趋势图与主题分布饼图。
 import { useEffect, useState } from 'react';
-import { Row, Col, Statistic, Card, Spin, message } from 'antd';
+import { Row, Col, Statistic, Card, Spin, message, theme } from 'antd';
 import {
   CheckCircleOutlined,
   UnorderedListOutlined,
@@ -10,9 +10,11 @@ import {
 import { fetchAnalysisOverview, fetchDailyStats, AnalysisOverview, DailyStat } from '../services/api';
 import ProgressBarView from '../components/ProgressBar';
 import { DailyTrendChart, TopicPieChart } from '../components/StatisticsChart';
+import Mascot from '../components/Mascot';
 import dayjs from 'dayjs';
 
 export default function Dashboard() {
+  const { token } = theme.useToken();
   const [overview, setOverview] = useState<AnalysisOverview | null>(null);
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +54,18 @@ export default function Dashboard() {
 
   return (
     <div>
+      <Row gutter={[16, 16]} style={{ marginBottom: 16, alignItems: 'center' }}>
+        <Col flex="none">
+          <Mascot size={108} />
+        </Col>
+        <Col flex="auto">
+          <div style={{ fontSize: 20, fontWeight: 700, color: token.colorText }}>嗨，今天也要元气满满 🌱</div>
+          <div style={{ color: token.colorTextSecondary, marginTop: 4 }}>
+            共 {overview.totalTasks} 个任务，已完成 {overview.completed} 个，完成率 {overview.completionRate}%
+          </div>
+        </Col>
+      </Row>
+
       <Row gutter={[16, 16]}>
         <Col xs={12} sm={6}>
           <Card><Statistic title="总任务" value={overview.totalTasks} prefix={<UnorderedListOutlined />} /></Card>

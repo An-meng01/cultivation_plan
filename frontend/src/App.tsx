@@ -15,8 +15,10 @@ import Tasks from './pages/Tasks';
 import ClockIn from './pages/ClockIn';
 import Analysis from './pages/Analysis';
 import TrackingNav from './components/TrackingNav';
+import AnimatedBackground from './components/AnimatedBackground';
 import { useTheme } from './theme/ThemeContext';
 import { useIsMobile } from './hooks/useIsMobile';
+import { AnimatePresence, motion } from 'framer-motion';
 
 const { Header, Content, Sider } = Layout;
 
@@ -53,7 +55,9 @@ function App() {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh', background: token.colorBgLayout }}>
+    <>
+      <AnimatedBackground dark={isDark} />
+      <Layout style={{ minHeight: '100vh', background: 'transparent', position: 'relative', zIndex: 1 }}>
       {/* 桌面端：保留左侧 Sider 侧边栏（手机端不渲染，改用顶部抽屉） */}
       {!isMobile && (
         <Sider
@@ -127,18 +131,37 @@ function App() {
           </div>
         </Drawer>
 
-        {/* 内容区：用白底与粉色侧边栏形成明显区分 */}
-        <Content style={{ margin: isMobile ? 12 : 24, background: token.colorBgContainer, borderRadius: 12, minHeight: 'calc(100vh - 48px - 48px)' }}>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/tasks" element={<Tasks />} />
-            <Route path="/clock-in" element={<ClockIn />} />
-            <Route path="/analysis" element={<Analysis />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+        {/* 内容区：玻璃质感，跟随主题的半透明底色（明暗自适应） */}
+        <Content
+          style={{
+            margin: isMobile ? 12 : 24,
+            background: `color-mix(in srgb, ${token.colorBgContainer} 78%, transparent)`,
+            backdropFilter: 'blur(6px)',
+            borderRadius: 12,
+            minHeight: 'calc(100vh - 48px - 48px)',
+          }}
+        >
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+            >
+              <Routes location={location} key={location.pathname}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/tasks" element={<Tasks />} />
+                <Route path="/clock-in" element={<ClockIn />} />
+                <Route path="/analysis" element={<Analysis />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </motion.div>
+          </AnimatePresence>
         </Content>
+        </Layout>
       </Layout>
-    </Layout>
+    </>
   );
 }
 
