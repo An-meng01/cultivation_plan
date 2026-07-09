@@ -226,9 +226,11 @@ export async function mockGetAnalysisOverview() {
   for (const k of Object.keys(topicDistribution)) {
     topicCompletionRate[k] = Math.round(((topicCompleted[k] || 0) / topicDistribution[k]) * 1000) / 10;
   }
+  const topicDist = Object.entries(topicDistribution).map(([topic, count]) => ({ topic, count }));
+  const topicRate = Object.entries(topicCompletionRate).map(([topic, rate]) => ({ topic, completed: topicCompleted[topic] || 0, rate }));
   const data: AnalysisOverview = {
     totalTasks: total, completed, pending, completionRate,
-    topicDistribution, topicCompletionRate,
+    topicDist, topicRate,
   };
   return { code: 0, data };
 }

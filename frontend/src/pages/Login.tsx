@@ -10,7 +10,7 @@ interface LoginRes {
   message?: string;
 }
 
-export default function Login() {
+export default function Login({ onLogin }: { onLogin?: (token: string) => void }) {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -25,6 +25,7 @@ export default function Login() {
         localStorage.setItem('token', res.data.token);
         localStorage.setItem('username', res.data.username);
         localStorage.setItem('userId', String(res.data.userId));
+        onLogin?.(res.data.token);
         message.success(mode === 'login' ? '登录成功' : '注册成功');
         navigate('/', { replace: true });
       } else {

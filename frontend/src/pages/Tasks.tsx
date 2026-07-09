@@ -1,8 +1,8 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useState } from 'react';
 import {
   Row, Col, Button, Modal, Form, Input, Select, DatePicker, Switch, InputNumber, Space, message, Spin, Tooltip, theme,
 } from 'antd';
-import { PlusOutlined, ReloadOutlined, BulbOutlined, FilterOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, BulbOutlined, CloseOutlined } from '@ant-design/icons';
 import { Task, TaskForm } from '../services/api';
 import { useTasks } from '../hooks/useTasks';
 import TaskCard from '../components/TaskCard';
@@ -16,35 +16,7 @@ export default function Tasks() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [form] = Form.useForm();
-  const [filterTopic, setFilterTopic] = useState<string>('');
-  const [filterPriority, setFilterPriority] = useState<number | undefined>(undefined);
-  const [filterSource, setFilterSource] = useState<string>('');
-  const [filterCompleted, setFilterCompleted] = useState<string>('');
-
-  const topics = useMemo(() => {
-    const s = new Set(tasks.map((t) => t.topic).filter(Boolean));
-    return Array.from(s);
-  }, [tasks]);
-
-  const filteredTasks = useMemo(() => {
-    return tasks.filter((t) => {
-      if (filterTopic && t.topic !== filterTopic) return false;
-      if (filterPriority !== undefined && t.priority !== filterPriority) return false;
-      if (filterSource && t.source !== filterSource) return false;
-      if (filterCompleted === 'true' && !t.completed) return false;
-      if (filterCompleted === 'false' && t.completed) return false;
-      return true;
-    });
-  }, [tasks, filterTopic, filterPriority, filterSource, filterCompleted]);
-
-  const applyFilters = () => {
-    const params: Record<string, string> = {};
-    if (filterTopic) params.topic = filterTopic;
-    if (filterPriority !== undefined) params.priority = String(filterPriority);
-    if (filterSource) params.source = filterSource;
-    if (filterCompleted) params.completed = filterCompleted;
-    load(params);
-  };
+  const taskType = Form.useWatch('type', form);
 
   // 是否展开"系统推荐"面板 + 加载中的 loading 状态（只用于控制显示与按钮反馈）
   const [showSystem, setShowSystem] = useState(false);

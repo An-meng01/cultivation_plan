@@ -14,6 +14,7 @@ import Dashboard from './pages/Dashboard';
 import Tasks from './pages/Tasks';
 import ClockIn from './pages/ClockIn';
 import Analysis from './pages/Analysis';
+import Login from './pages/Login';
 import TrackingNav from './components/TrackingNav';
 import { useTheme } from './theme/ThemeContext';
 import { useIsMobile } from './hooks/useIsMobile';
@@ -27,7 +28,7 @@ const menuItems = [
   { key: '/analysis', icon: <BarChartOutlined />, label: '任务分析' },
 ];
 
-function AppLayout() {
+function AppLayout({ onLogout }: { onLogout: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { isDark, toggle } = useTheme();
@@ -97,13 +98,16 @@ function AppLayout() {
             <span style={{ fontSize: 18, fontWeight: 600 }}>学习养成计划</span>
           </div>
 
-          {/* 右边：暗色主题开关（不变） */}
-          <Switch
-            checked={isDark}
-            onChange={toggle}
-            checkedChildren="🌙"
-            unCheckedChildren="☀"
-          />
+          {/* 右边：暗色主题开关 + 退出登录 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Switch
+              checked={isDark}
+              onChange={toggle}
+              checkedChildren="🌙"
+              unCheckedChildren="☀"
+            />
+            <Button type="text" onClick={onLogout}>退出</Button>
+          </div>
         </Header>
 
         {/* 手机端的导航抽屉：从左侧滑出，里面放同一份菜单 */}
@@ -143,12 +147,23 @@ function AppLayout() {
 }
 
 function App() {
-  const token = localStorage.getItem('token');
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
+
+  const handleLogin = (newToken: string) => {
+    setToken(newToken);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    localStorage.removeItem('userId');
+    setToken(null);
+  };
 
   if (!token) {
     return (
       <Routes>
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<Login onLogin={handleLogin} />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -156,7 +171,7 @@ function App() {
 
   return (
     <Routes>
-      <Route path="/*" element={<AppLayout />} />
+      <Route path="/*" element={<AppLayout onLogout={handleLogout} />} />
       <Route path="/login" element={<Navigate to="/" replace />} />
     </Routes>
   );
