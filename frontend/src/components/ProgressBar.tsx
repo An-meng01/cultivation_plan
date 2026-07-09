@@ -1,3 +1,4 @@
+// 学习进度条组件：展示总任务完成进度，以及按主题分类的细分进度。
 import { Progress, Card, Typography, Space } from 'antd';
 
 interface TopicProgress {

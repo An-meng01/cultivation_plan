@@ -1,3 +1,4 @@
+// 统计图表组件集：基于 recharts 提供每日趋势折线图、每日完成情况柱状图与主题分布饼图。
 import { Card } from 'antd';
 import {
   LineChart,

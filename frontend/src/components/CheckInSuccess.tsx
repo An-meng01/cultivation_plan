@@ -1,3 +1,4 @@
+// 成功庆祝弹层组件（可复用）：用纯 CSS 动画展示对勾与彩带，1.8 秒后自动关闭，用于打卡/创建成功反馈。
 import { useEffect } from 'react';
 import { theme } from 'antd';
 import './CheckInSuccess.css';

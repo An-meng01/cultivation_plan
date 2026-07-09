@@ -1,3 +1,4 @@
+// 打卡日历热力图组件：按月份展示每天打卡情况，支持上/下月切换，已打卡日期高亮显示。
 // 用到的 React 钩子要从 'react' 引入；Ant Design 的 Button/Space 用来做切换按钮
 import { Card, Typography, Button, Space, theme } from 'antd';
 import { LeftOutlined, RightOutlined } from '@ant-design/icons';

@@ -1,6 +1,7 @@
+// 应用根组件：搭建整体布局（侧边栏/顶栏菜单、明暗主题开关、路由出口），并做桌面与移动端适配。
 import { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Layout, Menu, Switch, Drawer, Button, theme } from 'antd';
+import { Layout, Switch, Drawer, Button, theme } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   DashboardOutlined,
@@ -13,6 +14,7 @@ import Dashboard from './pages/Dashboard';
 import Tasks from './pages/Tasks';
 import ClockIn from './pages/ClockIn';
 import Analysis from './pages/Analysis';
+import TrackingNav from './components/TrackingNav';
 import { useTheme } from './theme/ThemeContext';
 import { useIsMobile } from './hooks/useIsMobile';
 
@@ -31,12 +33,18 @@ function App() {
   const { isDark, toggle } = useTheme();
   const { token } = theme.useToken();
 
+  // 与粉色主题相搭、且与内容区有明显色差的侧边栏背景：亮色用较深的粉，暗色用酒红深粉
+  const siderBg = isDark ? '#34182b' : '#ffd9ec';
+
   // 【React 概念：自定义 Hook 复用】
   // 屏幕小于 768px 就认为是在手机上，返回 true。
   const isMobile = useIsMobile(768);
 
   // 抽屉菜单的开关状态（只在手机模式下用到）
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // 桌面端侧边栏默认收缩（只显示图标），鼠标移上去时展开
+  const [collapsed, setCollapsed] = useState(true);
 
   // 点菜单项：跳转页面；如果是手机，顺手把抽屉关掉
   const handleMenuClick = ({ key }: { key: string }) => {
@@ -48,17 +56,23 @@ function App() {
     <Layout style={{ minHeight: '100vh', background: token.colorBgLayout }}>
       {/* 桌面端：保留左侧 Sider 侧边栏（手机端不渲染，改用顶部抽屉） */}
       {!isMobile && (
-        <Sider collapsible>
-          <div style={{ height: 48, margin: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold', fontSize: 18 }}>
-            学习养成计划
+        <Sider
+          width={collapsed ? 72 : 220}
+          style={{ background: siderBg, transition: 'width .25s, background .3s', overflow: 'hidden', boxShadow: '2px 0 8px rgba(214, 51, 132, 0.12)' }}
+          onMouseEnter={() => setCollapsed(false)}
+          onMouseLeave={() => setCollapsed(true)}
+        >
+          <div style={{ height: 48, margin: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: token.colorText, fontWeight: 'bold', fontSize: 18 }}>
+            {collapsed ? <MenuOutlined /> : '导航'}
           </div>
-          <Menu
-            theme="dark"
-            mode="inline"
-            selectedKeys={[location.pathname]}
-            items={menuItems}
-            onClick={handleMenuClick}
-          />
+          <div style={{ padding: '0 12px' }}>
+            <TrackingNav
+              items={menuItems}
+              activeKey={location.pathname}
+              onSelect={(key) => handleMenuClick({ key })}
+              collapsed={collapsed}
+            />
+          </div>
         </Sider>
       )}
 
@@ -99,22 +113,22 @@ function App() {
           onClose={() => setDrawerOpen(false)}
           // 标题栏不显示关闭叉，靠点菜单或点遮罩关闭
           closable={false}
-          styles={{ body: { padding: 0 } }}
+          styles={{ body: { padding: 0, background: siderBg } }}
         >
           <div style={{ height: 48, margin: 16, display: 'flex', alignItems: 'center', color: token.colorText, fontWeight: 'bold', fontSize: 18 }}>
             学习养成计划
           </div>
-          <Menu
-            theme="light"
-            mode="inline"
-            selectedKeys={[location.pathname]}
-            items={menuItems}
-            onClick={handleMenuClick}
-          />
+          <div style={{ padding: '0 12px' }}>
+            <TrackingNav
+              items={menuItems}
+              activeKey={location.pathname}
+              onSelect={(key) => handleMenuClick({ key })}
+            />
+          </div>
         </Drawer>
 
-        {/* 内容区：手机上把外边距收窄，避免太挤 */}
-        <Content style={{ margin: isMobile ? 12 : 24 }}>
+        {/* 内容区：用白底与粉色侧边栏形成明显区分 */}
+        <Content style={{ margin: isMobile ? 12 : 24, background: token.colorBgContainer, borderRadius: 12, minHeight: 'calc(100vh - 48px - 48px)' }}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/tasks" element={<Tasks />} />

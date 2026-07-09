@@ -1,3 +1,4 @@
+// 优先级工具：定义优先级（低/中/高/紧急）对应的中文标签、标签色与边框色，并提供获取函数。
 export const PRIORITY_LABELS: Record<number, string> = {
   0: '低',
   1: '中',

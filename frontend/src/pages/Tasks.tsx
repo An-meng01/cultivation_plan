@@ -1,6 +1,7 @@
+// 任务管理页面：提供任务的新建/编辑弹窗、筛选、系统推荐加载及任务卡片网格展示。
 import { useState } from 'react';
 import {
-  Row, Col, Button, Modal, Form, Input, Select, DatePicker, Switch, Space, message, Spin, Tooltip, theme,
+  Row, Col, Button, Modal, Form, Input, Select, DatePicker, Switch, InputNumber, Space, message, Spin, Tooltip, theme,
 } from 'antd';
 import { PlusOutlined, ReloadOutlined, BulbOutlined, CloseOutlined } from '@ant-design/icons';
 import { Task, TaskForm } from '../services/api';
@@ -16,6 +17,7 @@ export default function Tasks() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [form] = Form.useForm();
+  const taskType = Form.useWatch('type', form);
 
   // 是否展开"系统推荐"面板 + 加载中的 loading 状态（只用于控制显示与按钮反馈）
   const [showSystem, setShowSystem] = useState(false);
@@ -45,7 +47,7 @@ export default function Tasks() {
   const openCreate = () => {
     setEditingTask(null);
     form.resetFields();
-    form.setFieldsValue({ priority: 1, source: 'custom' });
+    form.setFieldsValue({ priority: 1, source: 'custom', type: 'once' });
     setModalOpen(true);
   };
 
@@ -57,6 +59,9 @@ export default function Tasks() {
       topic: task.topic,
       priority: task.priority,
       needReviewReminder: task.needReviewReminder,
+      type: task.type,
+      intervalValue: task.intervalValue,
+      intervalUnit: task.intervalUnit,
       deadline: task.deadline ? dayjs(task.deadline) : null,
     });
     setModalOpen(true);
@@ -141,51 +146,53 @@ export default function Tasks() {
 
   return (
     <div>
-      {/* 筛选栏：三个受控 Select + 重置按钮 */}
-      <Space style={{ marginBottom: 16 }} wrap>
-        {/* 【React 概念：受控组件】Select 的 value 来自 state，onChange 把用户选择写回 state。
-            这样"界面显示什么"永远由 state 决定，数据和视图是单一来源的。 */}
-        <Select
-          placeholder="按主题筛选"
-          allowClear
-          style={{ width: 160 }}
-          value={filters.topic}
-          onChange={(v) => handleFilterChange({ topic: v || undefined })}
-          options={topicOptions.map((t) => ({ label: t, value: t }))}
-        />
-        <Select
-          placeholder="按优先级筛选"
-          allowClear
-          style={{ width: 140 }}
-          value={filters.priority}
-          onChange={(v) => handleFilterChange({ priority: v || undefined })}
-          options={[
-            { label: '低', value: '0' },
-            { label: '中', value: '1' },
-            { label: '高', value: '2' },
-            { label: '紧急', value: '3' },
-          ]}
-        />
-        <Select
-          placeholder="按状态筛选"
-          allowClear
-          style={{ width: 140 }}
-          value={filters.completed}
-          onChange={(v) => handleFilterChange({ completed: v || undefined })}
-          options={[
-            { label: '未完成', value: 'false' },
-            { label: '已完成', value: 'true' },
-          ]}
-        />
-        <Button onClick={resetFilters}>重置筛选</Button>
-      </Space>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* 筛选栏：三个受控 Select + 重置按钮 */}
+        <Space wrap>
+          {/* 【React 概念：受控组件】Select 的 value 来自 state，onChange 把用户选择写回 state。
+              这样"界面显示什么"永远由 state 决定，数据和视图是单一来源的。 */}
+          <Select
+            placeholder="按主题筛选"
+            allowClear
+            style={{ width: 160 }}
+            value={filters.topic}
+            onChange={(v) => handleFilterChange({ topic: v || undefined })}
+            options={topicOptions.map((t) => ({ label: t, value: t }))}
+          />
+          <Select
+            placeholder="按优先级筛选"
+            allowClear
+            style={{ width: 140 }}
+            value={filters.priority}
+            onChange={(v) => handleFilterChange({ priority: v || undefined })}
+            options={[
+              { label: '低', value: '0' },
+              { label: '中', value: '1' },
+              { label: '高', value: '2' },
+              { label: '紧急', value: '3' },
+            ]}
+          />
+          <Select
+            placeholder="按状态筛选"
+            allowClear
+            style={{ width: 140 }}
+            value={filters.completed}
+            onChange={(v) => handleFilterChange({ completed: v || undefined })}
+            options={[
+              { label: '未完成', value: 'false' },
+              { label: '已完成', value: 'true' },
+            ]}
+          />
+          <Button onClick={resetFilters}>重置筛选</Button>
+        </Space>
 
-      <Space style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建任务</Button>
-        {/* 刷新时带上当前筛选条件，避免一刷新就回到"全部" */}
-        <Button icon={<ReloadOutlined />} onClick={() => load(buildParams(filters))}>刷新</Button>
-        <Button icon={<BulbOutlined />} loading={systemLoading} onClick={handleLoadSystem}>加载系统推荐</Button>
-      </Space>
+        <Space>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建任务</Button>
+          {/* 刷新时带上当前筛选条件，避免一刷新就回到"全部" */}
+          <Button icon={<ReloadOutlined />} onClick={() => load(buildParams(filters))}>刷新</Button>
+          <Button icon={<BulbOutlined />} loading={systemLoading} onClick={handleLoadSystem}>加载系统推荐</Button>
+        </Space>
+      </div>
 
       {showSystem && systemTasks.length > 0 && (
         // 【React 概念：用一个按钮改状态来控制显隐】
@@ -218,9 +225,9 @@ export default function Tasks() {
       {loading ? (
         <Spin style={{ display: 'block', marginTop: 60 }} />
       ) : tasks.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60, color: '#999' }}>暂无任务，点击上方按钮创建</div>
+        <div style={{ textAlign: 'center', padding: 60, color: '#999', marginTop: 20 }}>暂无任务，点击上方按钮创建</div>
       ) : (
-        <Row gutter={[12, 12]}>
+        <Row gutter={[12, 12]} style={{ marginTop: 20 }}>
           {tasks.map((t) => (
             <Col key={t.id} xs={24} sm={12} lg={8} xl={6}>
               <TaskCard task={t} onComplete={done} onEdit={openEdit} onDelete={remove} />
@@ -254,9 +261,32 @@ export default function Tasks() {
               <Select.Option value={3}>紧急</Select.Option>
             </Select>
           </Form.Item>
-          <Form.Item name="deadline" label="截止时间">
-            <DatePicker showTime style={{ width: '100%' }} />
+          <Form.Item name="type" label="任务类型">
+            <Select>
+              <Select.Option value="daily">每天打卡</Select.Option>
+              <Select.Option value="periodic">周期任务</Select.Option>
+              <Select.Option value="once">一次性</Select.Option>
+            </Select>
           </Form.Item>
+          {taskType === 'periodic' && (
+            <Space align="start" style={{ display: 'flex' }}>
+              <Form.Item name="intervalValue" label="每隔" style={{ marginBottom: 0 }}>
+                <InputNumber min={1} style={{ width: 120 }} />
+              </Form.Item>
+              <Form.Item name="intervalUnit" label="单位" style={{ marginBottom: 0 }}>
+                <Select style={{ width: 100 }}>
+                  <Select.Option value="day">天</Select.Option>
+                  <Select.Option value="week">周</Select.Option>
+                  <Select.Option value="month">月</Select.Option>
+                </Select>
+              </Form.Item>
+            </Space>
+          )}
+          {taskType === 'once' && (
+            <Form.Item name="deadline" label="截止时间">
+              <DatePicker showTime style={{ width: '100%' }} />
+            </Form.Item>
+          )}
           <Form.Item name="needReviewReminder" label="复习提醒" valuePropName="checked">
             <Switch />
           </Form.Item>

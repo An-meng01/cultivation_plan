@@ -1,3 +1,4 @@
+// 自定义 Hook：监听窗口宽度，返回当前是否为移动端（小于指定断点），用于响应式布局切换。
 import { useState, useEffect } from 'react';
 
 // 【React 概念：自定义 Hook + 副作用清理】

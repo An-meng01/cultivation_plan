@@ -1,3 +1,4 @@
+// 入口文件：挂载 React 应用，包裹 BrowserRouter（路由）与 ThemeProvider（主题）。
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';

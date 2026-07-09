@@ -1,3 +1,4 @@
+// 主题上下文：通过 Context 提供明暗主题状态与切换方法，并用 antd ConfigProvider 实现全局换肤（含中文 locale）。
 import { createContext, useContext, useState, ReactNode } from 'react';
 import { ConfigProvider, theme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';

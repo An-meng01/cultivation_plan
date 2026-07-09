@@ -1,3 +1,4 @@
+// 任务卡片组件：展示单个任务的标题、描述、主题、优先级、截止时间等，并提供完成/编辑/删除操作。
 import { Card, Tag, Typography, Space, Tooltip } from 'antd';
 import {
   CheckCircleOutlined,
@@ -8,6 +9,7 @@ import {
 import { Task } from '../services/api';
 import { getPriorityLabel, getPriorityColor, getPriorityBorderColor } from '../utils/priorityHelper';
 import { formatDate, isOverdue } from '../utils/dateHelper';
+import { getNextDue, getTypeLabel } from '../utils/taskStatus';
 import dayjs from 'dayjs';
 
 const { Text, Paragraph } = Typography;
@@ -21,6 +23,9 @@ interface Props {
 
 export default function TaskCard({ task, onComplete, onEdit, onDelete }: Props) {
   const overdue = !task.completed && isOverdue(task.deadline);
+  const nextDue = getNextDue(task);
+  const periodicOverdue = task.type === 'periodic' && !!nextDue && nextDue.isBefore(dayjs());
+  const showOverdue = overdue || periodicOverdue;
   const deadlineNear =
     !task.completed &&
     task.deadline &&
@@ -76,11 +81,19 @@ export default function TaskCard({ task, onComplete, onEdit, onDelete }: Props) 
           </Paragraph>
         )}
         <Space size={4} wrap>
+          <Tag color="magenta">{getTypeLabel(task)}</Tag>
           <Tag>{task.topic || '未分类'}</Tag>
           <Tag color={getPriorityColor(task.priority)}>{getPriorityLabel(task.priority)}</Tag>
-          <Tag icon={<ClockCircleOutlined />} color={overdue ? 'red' : 'default'}>
-            {task.deadline ? formatDate(task.deadline) : '无截止时间'}
-          </Tag>
+          {task.type === 'periodic' && nextDue && (
+            <Tag icon={<ClockCircleOutlined />} color={periodicOverdue ? 'red' : 'default'}>
+              {`下次 ${nextDue.format('YYYY-MM-DD')}`}
+            </Tag>
+          )}
+          {task.type === 'once' && (
+            <Tag icon={<ClockCircleOutlined />} color={showOverdue ? 'red' : 'default'}>
+              {task.deadline ? formatDate(task.deadline) : '无截止时间'}
+            </Tag>
+          )}
           {task.source === 'system' && <Tag color="purple">推荐</Tag>}
         </Space>
       </Space>

@@ -1,3 +1,4 @@
+// API 服务层：定义任务/打卡/分析等后端接口请求函数、数据类型，并支持根据环境变量切换 Mock 数据。
 import axios from 'axios';
 import * as mock from './mockServer';
 
@@ -15,6 +16,9 @@ api.interceptors.response.use(
   (err) => Promise.reject(err.response?.data || err),
 );
 
+export type TaskType = 'daily' | 'periodic' | 'once';
+export type IntervalUnit = 'day' | 'week' | 'month';
+
 export interface Task {
   id: number;
   title: string;
@@ -27,6 +31,10 @@ export interface Task {
   deadline: string | null;
   createdAt: string;
   completedAt: string | null;
+  type: TaskType;
+  intervalValue?: number;
+  intervalUnit?: IntervalUnit;
+  lastCheckIn?: string | null;
 }
 
 export interface TaskForm {
@@ -36,6 +44,9 @@ export interface TaskForm {
   priority?: number;
   needReviewReminder?: boolean;
   deadline?: string;
+  type?: TaskType;
+  intervalValue?: number;
+  intervalUnit?: IntervalUnit;
 }
 
 export interface ClockRecord {

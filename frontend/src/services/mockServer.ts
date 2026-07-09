@@ -1,6 +1,9 @@
+// Mock 服务：在前端内存中模拟后端接口（任务、打卡、分析数据），用于无后端时的本地开发与演示。
 import dayjs from 'dayjs';
 import {
   Task,
+  TaskType,
+  IntervalUnit,
   ClockRecord,
   AnalysisOverview,
   DailyStat,
@@ -16,49 +19,49 @@ const now = dayjs();
 const tasks: Task[] = [
   {
     id: 1, title: '每日英语单词背诵', description: '背诵 30 个新单词并复习旧词',
-    topic: '英语', priority: 2, source: 'system', needReviewReminder: true,
+    topic: '英语', priority: 2, source: 'system', needReviewReminder: true, type: 'daily',
     completed: false, deadline: now.add(3, 'hour').toISOString(),
     createdAt: now.subtract(2, 'day').toISOString(), completedAt: null,
   },
   {
     id: 2, title: '编程练习: 两数之和', description: 'LeetCode 每日一题',
-    topic: '编程', priority: 3, source: 'custom', needReviewReminder: false,
+    topic: '编程', priority: 3, source: 'custom', needReviewReminder: false, type: 'daily',
     completed: false, deadline: now.subtract(2, 'hour').toISOString(),
     createdAt: now.subtract(1, 'day').toISOString(), completedAt: null,
   },
   {
     id: 3, title: '阅读技术文章', description: '阅读一篇前端性能优化文章',
-    topic: '编程', priority: 1, source: 'system', needReviewReminder: false,
+    topic: '编程', priority: 1, source: 'system', needReviewReminder: false, type: 'once',
     completed: true, deadline: now.subtract(1, 'day').toISOString(),
     createdAt: now.subtract(3, 'day').toISOString(), completedAt: now.subtract(1, 'day').toISOString(),
   },
   {
     id: 4, title: '数学题练习', description: '高数习题 3.2',
-    topic: '数学', priority: 2, source: 'custom', needReviewReminder: true,
+    topic: '数学', priority: 2, source: 'custom', needReviewReminder: true, type: 'periodic', intervalValue: 2, intervalUnit: 'day', lastCheckIn: now.subtract(1, 'day').toISOString(),
     completed: false, deadline: now.add(20, 'hour').toISOString(),
     createdAt: now.subtract(2, 'day').toISOString(), completedAt: null,
   },
   {
     id: 5, title: '课程复习', description: '复习操作系统第三章',
-    topic: '数学', priority: 1, source: 'system', needReviewReminder: false,
+    topic: '数学', priority: 1, source: 'system', needReviewReminder: false, type: 'periodic', intervalValue: 1, intervalUnit: 'week', lastCheckIn: now.subtract(3, 'day').toISOString(),
     completed: false, deadline: now.add(5, 'day').toISOString(),
     createdAt: now.subtract(1, 'day').toISOString(), completedAt: null,
   },
   {
     id: 6, title: '整理学习笔记', description: '',
-    topic: '英语', priority: 0, source: 'custom', needReviewReminder: false,
+    topic: '英语', priority: 0, source: 'custom', needReviewReminder: false, type: 'once',
     completed: true, deadline: now.subtract(4, 'day').toISOString(),
     createdAt: now.subtract(5, 'day').toISOString(), completedAt: now.subtract(4, 'day').toISOString(),
   },
   {
     id: 7, title: '背一篇英文短文', description: '',
-    topic: '英语', priority: 1, source: 'custom', needReviewReminder: false,
+    topic: '英语', priority: 1, source: 'custom', needReviewReminder: false, type: 'daily',
     completed: false, deadline: now.add(12, 'hour').toISOString(),
     createdAt: now.subtract(1, 'day').toISOString(), completedAt: null,
   },
   {
     id: 8, title: '算法: 动态规划入门', description: '看视频 + 做 2 题',
-    topic: '编程', priority: 2, source: 'custom', needReviewReminder: false,
+    topic: '编程', priority: 2, source: 'custom', needReviewReminder: false, type: 'periodic', intervalValue: 3, intervalUnit: 'day',
     completed: false, deadline: now.add(2, 'day').toISOString(),
     createdAt: now.subtract(1, 'day').toISOString(), completedAt: null,
   },
@@ -66,11 +69,11 @@ const tasks: Task[] = [
 
 // 系统推荐任务
 const systemTemplates: Omit<Task, 'id' | 'completed' | 'createdAt' | 'completedAt' | 'source'>[] = [
-  { title: '每日英语单词背诵', description: '背诵 30 个新单词', topic: '英语', priority: 2, needReviewReminder: true, deadline: null },
-  { title: '编程练习', description: '完成一道算法题', topic: '编程', priority: 2, needReviewReminder: false, deadline: null },
-  { title: '阅读技术文章', description: '阅读一篇技术文章', topic: '编程', priority: 1, needReviewReminder: false, deadline: null },
-  { title: '数学题练习', description: '完成一节数学习题', topic: '数学', priority: 2, needReviewReminder: true, deadline: null },
-  { title: '课程复习', description: '复习当天课程内容', topic: '数学', priority: 1, needReviewReminder: false, deadline: null },
+  { title: '每日英语单词背诵', description: '背诵 30 个新单词', topic: '英语', priority: 2, needReviewReminder: true, deadline: null, type: 'daily' },
+  { title: '编程练习', description: '完成一道算法题', topic: '编程', priority: 2, needReviewReminder: false, deadline: null, type: 'daily' },
+  { title: '阅读技术文章', description: '阅读一篇技术文章', topic: '编程', priority: 1, needReviewReminder: false, deadline: null, type: 'once' },
+  { title: '数学题练习', description: '完成一节数学习题', topic: '数学', priority: 2, needReviewReminder: true, deadline: null, type: 'periodic', intervalValue: 2, intervalUnit: 'day' },
+  { title: '课程复习', description: '复习当天课程内容', topic: '数学', priority: 1, needReviewReminder: false, deadline: null, type: 'periodic', intervalValue: 1, intervalUnit: 'week' },
 ];
 
 // 最近几天的打卡记录
@@ -114,6 +117,10 @@ export async function mockCreateTask(data: any) {
     deadline: data.deadline ?? null,
     createdAt: new Date().toISOString(),
     completedAt: null,
+    type: (data.type as TaskType) ?? 'once',
+    intervalValue: data.intervalValue,
+    intervalUnit: data.intervalUnit as IntervalUnit | undefined,
+    lastCheckIn: null,
   });
   return { code: 0, data: { id } };
 }
@@ -159,18 +166,37 @@ export async function mockClockIn(taskId: number) {
   const t = findTask(taskId);
   if (!t) return { code: 404, message: 'task not found' };
   const today = dayjs().format('YYYY-MM-DD');
-  const existed = clockRecords.find(
+  const alreadyToday = clockRecords.some(
     (r) => r.taskId === taskId && dayjs(r.checkInTime).format('YYYY-MM-DD') === today,
   );
-  if (existed) return { code: 409, message: 'already checked in today' };
+
+  if (t.type === 'once') {
+    if (t.completed) return { code: 409, message: 'already completed' };
+  } else if (t.type === 'daily') {
+    if (alreadyToday) return { code: 409, message: 'already checked in today' };
+  } else {
+    // 周期任务：本周期（上次打卡至今）已打过则视为重复
+    const start = t.lastCheckIn ? dayjs(t.lastCheckIn) : dayjs(t.createdAt);
+    const inCycle = clockRecords.some(
+      (r) =>
+        r.taskId === taskId &&
+        (dayjs(r.checkInTime).isSame(start) || dayjs(r.checkInTime).isAfter(start)),
+    );
+    if (inCycle) return { code: 409, message: 'already checked in this period' };
+  }
+
   clockRecords.push({
     id: ++nextId,
     taskId,
     taskTitle: t.title,
     checkInTime: new Date().toISOString(),
   });
-  t.completed = true;
-  t.completedAt = new Date().toISOString();
+  t.lastCheckIn = new Date().toISOString();
+  // 一次性任务打卡即完结；每天/周期任务仅记录打卡，不自动完结
+  if (t.type === 'once') {
+    t.completed = true;
+    t.completedAt = new Date().toISOString();
+  }
   return { code: 0, message: 'checked in' };
 }
 

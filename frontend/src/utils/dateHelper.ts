@@ -1,3 +1,4 @@
+// 日期工具函数：提供日期格式化与是否逾期判断的通用辅助方法。
 import dayjs from 'dayjs';
 
 export function formatDate(dateStr: string | null | undefined): string {

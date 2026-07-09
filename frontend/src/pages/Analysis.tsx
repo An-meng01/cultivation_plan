@@ -1,3 +1,4 @@
+// 任务分析页面：展示总览统计指标、每日趋势/完成柱状图、主题分布饼图与明细表格。
 import { useEffect, useState } from 'react';
 import { Row, Col, Card, Table, Statistic, Spin, message } from 'antd';
 import { fetchAnalysisOverview, fetchDailyStats, AnalysisOverview, DailyStat } from '../services/api';
