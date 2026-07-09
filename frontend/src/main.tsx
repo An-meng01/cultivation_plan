@@ -1,16 +1,17 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { ConfigProvider } from 'antd';
-import zhCN from 'antd/locale/zh_CN';
 import App from './App';
+import { ThemeProvider } from './theme/ThemeContext';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ConfigProvider locale={zhCN}>
-      <BrowserRouter>
+    <BrowserRouter>
+      {/* ThemeProvider 内部已经包含了 ConfigProvider（locale + 暗色算法），
+          所以这里不再单独写 ConfigProvider，避免重复包裹 */}
+      <ThemeProvider>
         <App />
-      </BrowserRouter>
-    </ConfigProvider>
+      </ThemeProvider>
+    </BrowserRouter>
   </React.StrictMode>,
 );
