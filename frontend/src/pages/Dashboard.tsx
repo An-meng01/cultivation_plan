@@ -1,3 +1,4 @@
+// 仪表盘首页：展示任务总览统计、学习进度条、每日趋势图与主题分布饼图。
 import { useEffect, useState } from 'react';
 import { Row, Col, Statistic, Card, Spin, message } from 'antd';
 import {

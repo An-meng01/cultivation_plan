@@ -1,6 +1,8 @@
+// 自定义 Hook：封装打卡记录的加载、打卡操作与今日已打卡集合，供打卡页面等复用。
 import { useState, useEffect, useCallback } from 'react';
+import { message } from 'antd';
 import { fetchClockRecords, clockIn, ClockRecord } from '../services/api';
-import dayjs from 'dayjs';
+import { extractErrorMessage } from '../utils/response';
 
 export function useClockRecords() {
   const [records, setRecords] = useState<ClockRecord[]>([]);
@@ -10,7 +12,11 @@ export function useClockRecords() {
     setLoading(true);
     try {
       const res = await fetchClockRecords(params);
+      const err = extractErrorMessage(res);
+      if (err) { message.error(err); return; }
       setRecords(res.data);
+    } catch (e: any) {
+      message.error(e?.message || '加载打卡记录失败');
     } finally {
       setLoading(false);
     }
@@ -22,9 +28,18 @@ export function useClockRecords() {
   }, [load]);
 
   const checkIn = useCallback(async (taskId: number) => {
-    await clockIn(taskId);
-    const today = dayjs().format('YYYY-MM-DD');
-    await load({ date: today });
+    try {
+      const res = await clockIn(taskId);
+      const err = extractErrorMessage(res);
+      if (err) throw new Error(err);   // 如 409 重复打卡 → 转成异常
+      // 【注意】打卡后要重新拉"全部"记录，而不是只拉当天。
+      // 因为日历热力图要展示整个月的打卡情况；若只拉 today，
+      // records 会被过滤成仅当天，导致其它日期的绿点消失。
+      await load();
+    } catch (e: any) {
+      message.error(e?.message || '打卡失败');
+      throw e;                          // 继续抛出，让页面知道失败（不弹成功）
+    }
   }, [load]);
 
   const todayRecords = records;

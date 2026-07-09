@@ -1,0 +1,95 @@
+/* 打卡/创建成功庆祝特效的纯 CSS 样式：遮罩淡入、卡片弹出、对勾描边、彩带飘落等动画。 */
+/* 全部动画均为纯 CSS（@keyframes + transition）实现，无需任何动画库依赖 */
+
+.cis-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  animation: cis-fade 0.25s ease;
+}
+@keyframes cis-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.cis-card {
+  position: relative;
+  width: 320px;
+  padding: 36px 24px 28px;
+  border-radius: 20px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  animation: cis-pop 0.45s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+@keyframes cis-pop {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* 对勾动画：先画圆，再画勾 */
+.cis-check {
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 12px;
+  display: block;
+}
+.cis-check-circle {
+  fill: none;
+  stroke: #52c41a;
+  stroke-width: 3;
+  stroke-dasharray: 151;
+  stroke-dashoffset: 151;
+  animation: cis-draw 0.5s ease forwards;
+}
+.cis-check-path {
+  fill: none;
+  stroke: #52c41a;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: cis-draw 0.4s 0.45s ease forwards;
+}
+@keyframes cis-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.cis-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #52c41a;
+  margin-bottom: 6px;
+}
+.cis-sub {
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+.cis-tip {
+  font-size: 12px;
+}
+
+/* 彩带碎片：从顶部飘落并旋转淡出 */
+.cis-confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.cis-piece {
+  position: absolute;
+  top: -20px;
+  border-radius: 2px;
+  animation-name: cis-fall;
+  animation-timing-function: ease-in;
+  animation-fill-mode: forwards;
+}
+@keyframes cis-fall {
+  0% { transform: translateY(0) rotate(0); opacity: 1; }
+  100% { transform: translateY(440px) rotate(540deg); opacity: 0; }
+}
