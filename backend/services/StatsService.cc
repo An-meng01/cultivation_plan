@@ -11,7 +11,7 @@ Json::Value StatsService::getOverview(int userId) {
     Json::Value result;
     auto db = app().getDbClient("default");
 
-    auto result = db->execSqlSync(
+    auto rows = db->execSqlSync(
         "SELECT COUNT(*) AS total, "
         "SUM(CASE WHEN completed THEN 1 ELSE 0 END) AS done, "
         "topic FROM tasks WHERE user_id = $1 "
@@ -23,7 +23,7 @@ Json::Value StatsService::getOverview(int userId) {
     Json::Value topicDist(Json::arrayValue);
     Json::Value topicRate(Json::arrayValue);
 
-    for (auto& row : result) {
+    for (const auto& row : rows) {
         int t = row["total"].as<int>();
         int d = row["done"].as<int>();
         total += t;
@@ -94,18 +94,18 @@ Json::Value StatsService::getDailyStats(const std::string& start,
         cumulativeTotal = before[0]["cnt"].as<int>();
     }
 
-    for (auto& row : result) {
+    for (const auto& row : result) {
         std::string date = row["dt"].as<std::string>();
         int added = row["added"].as<int>();
-        int compl = row["done"].as<int>();
+        int doneCnt = row["done"].as<int>();
         cumulativeTotal += added;
 
         Json::Value item;
         item["date"] = date;
         item["added"] = added;
-        item["completed"] = compl;
+        item["completed"] = doneCnt;
         item["rate"] = cumulativeTotal > 0
-            ? std::round(compl * 1000.0 / cumulativeTotal) / 10.0
+            ? std::round(doneCnt * 1000.0 / cumulativeTotal) / 10.0
             : 0.0;
         arr.append(item);
     }
@@ -123,7 +123,7 @@ Json::Value StatsService::getTopicDistribution(int userId) {
         userId
     );
 
-    for (auto& row : result) {
+    for (const auto& row : result) {
         Json::Value item;
         std::string topic = row["topic"].as<std::string>();
         if (topic.empty()) topic = "未分类";
@@ -145,7 +145,7 @@ Json::Value StatsService::getPriorityDistribution(int userId) {
         userId
     );
 
-    for (auto& row : result) {
+    for (const auto& row : result) {
         Json::Value item;
         item["priority"] = row["priority"].as<int>();
         item["count"] = row["cnt"].as<int>();

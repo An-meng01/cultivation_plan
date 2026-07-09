@@ -26,7 +26,7 @@ void TaskController::getAll(
     std::function<void(const HttpResponsePtr&)>&& callback) {
     auto params = req->parameters();
     auto db = app().getDbClient("default");
-    int userId = utils::getUserId(req);
+    int userId = auth_utils::getUserId(req);
 
     std::string topic = params.find("topic") != params.end() ? params.at("topic") : "";
     std::string priority = params.find("priority") != params.end() ? params.at("priority") : "";
@@ -43,7 +43,7 @@ void TaskController::getAll(
         userId, topic, priority, source, completed);
 
     Json::Value arr(Json::arrayValue);
-    for (auto& row : result) {
+    for (const auto& row : result) {
         models::Task t;
         t.id = row["id"].as<int>();
         t.title = row["title"].as<std::string>();
@@ -68,7 +68,7 @@ void TaskController::getOne(
     std::function<void(const HttpResponsePtr&)>&& callback,
     int id) {
     auto db = app().getDbClient("default");
-    int userId = utils::getUserId(req);
+    int userId = auth_utils::getUserId(req);
     auto result = db->execSqlSync(
         "SELECT * FROM tasks WHERE id = $1 AND user_id = $2", id, userId);
 
@@ -79,7 +79,7 @@ void TaskController::getOne(
         return;
     }
 
-    auto& row = result[0];
+    const auto& row = result[0];
     models::Task t;
     t.id = row["id"].as<int>();
     t.title = row["title"].as<std::string>();
@@ -111,16 +111,16 @@ void TaskController::create(
     std::string source = json->get("source", "").asString();
     if (source != "system") source = "custom";
     t.source = source;
-    int userId = utils::getUserId(req);
+    int userId = auth_utils::getUserId(req);
     auto db = app().getDbClient("default");
 
     auto result = db->execSqlSync(
         "INSERT INTO tasks (user_id, title, description, topic, priority, "
         "source, need_review_reminder, deadline) "
-        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8::timestamp) RETURNING id",
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, '')::timestamp) RETURNING id",
         userId, t.title, t.description, t.topic, t.priority,
         source, t.needReviewReminder,
-        t.deadline.empty() ? nullptr : t.deadline);
+        t.deadline);
 
     int newId = result[0]["id"].as<int>();
     Json::Value data;
@@ -147,7 +147,7 @@ void TaskController::update(
     std::string topic = json->get("topic", "").asString();
     int priority = json->get("priority", -1).asInt();
     bool completed = json->get("completed", false).asBool();
-    int userId = utils::getUserId(req);
+    int userId = auth_utils::getUserId(req);
 
     auto db = app().getDbClient("default");
     db->execSqlSync(
@@ -168,7 +168,7 @@ void TaskController::remove(
     std::function<void(const HttpResponsePtr&)>&& callback,
     int id) {
     auto db = app().getDbClient("default");
-    int userId = utils::getUserId(req);
+    int userId = auth_utils::getUserId(req);
     db->execSqlSync("DELETE FROM tasks WHERE id = $1 AND user_id = $2", id, userId);
     auto resp = HttpResponse::newHttpJsonResponse(ok());
     callback(resp);
@@ -179,7 +179,7 @@ void TaskController::complete(
     std::function<void(const HttpResponsePtr&)>&& callback,
     int id) {
     auto db = app().getDbClient("default");
-    int userId = utils::getUserId(req);
+    int userId = auth_utils::getUserId(req);
     db->execSqlSync(
         "UPDATE tasks SET completed = TRUE, "
         "completed_at = NOW() WHERE id = $1 AND user_id = $2", id, userId);
