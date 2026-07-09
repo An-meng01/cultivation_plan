@@ -1,5 +1,4 @@
 #include "filters/AuthFilter.h"
-#include "utils/AuthContext.h"
 #include <drogon/drogon.h>
 
 using namespace drogon;
@@ -7,29 +6,38 @@ using namespace drogon;
 void AuthFilter::doFilter(const HttpRequestPtr& req,
                            FilterCallback&& fcb,
                            FilterChainCallback&& fccb) {
-    // Auth is optional: only enforce if api_key is configured in config.json
-    auto& app = drogon::app();
-    auto config = app.getCustomConfig();
-    std::string expectedKey;
-    if (config.isMember("api_key")) {
-        expectedKey = config["api_key"].asString();
-    }
-    if (!expectedKey.empty()) {
-        auto apiKey = req->getHeader("X-API-Key");
-        if (apiKey != expectedKey) {
-            Json::Value j;
-            j["code"] = 401;
-            j["message"] = "unauthorized";
-            auto resp = HttpResponse::newHttpJsonResponse(j);
-            resp->setStatusCode(k401Unauthorized);
-            fcb(resp);
-            return;
-        }
+    std::string token;
+    auto auth = req->getHeader("Authorization");
+    if (auth.size() > 7 && auth.substr(0, 7) == "Bearer ") {
+        token = auth.substr(7);
     }
 
-    // 解析并固化用户身份，供下游控制器统一读取，消除硬编码 user_id=1
-    int uid = auth_utils::getUserId(req);
-    req->attributes()->insert("user_id", std::to_string(uid));
+    if (token.empty()) {
+        Json::Value j;
+        j["code"] = 401;
+        j["message"] = "missing authorization token";
+        auto resp = HttpResponse::newHttpJsonResponse(j);
+        resp->setStatusCode(k401Unauthorized);
+        fcb(resp);
+        return;
+    }
 
+    auto db = app().getDbClient("default");
+    auto result = db->execSqlSync(
+        "SELECT user_id FROM sessions WHERE token = $1",
+        token);
+
+    if (result.empty()) {
+        Json::Value j;
+        j["code"] = 401;
+        j["message"] = "invalid or expired token";
+        auto resp = HttpResponse::newHttpJsonResponse(j);
+        resp->setStatusCode(k401Unauthorized);
+        fcb(resp);
+        return;
+    }
+
+    int userId = result[0]["user_id"].as<int>();
+    req->attributes()->insert("user_id", std::to_string(userId));
     fccb();
 }

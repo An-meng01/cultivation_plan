@@ -40,6 +40,14 @@ CREATE INDEX idx_clock_task_id ON clock_records(task_id);
 INSERT INTO users (username, password) VALUES ('default', 'default')
 ON CONFLICT (username) DO NOTHING;
 
+CREATE TABLE IF NOT EXISTS sessions (
+    token       VARCHAR(64) PRIMARY KEY,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at  TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_sessions_user ON sessions(user_id);
+
 CREATE TABLE IF NOT EXISTS reminders (
     id           SERIAL PRIMARY KEY,
     user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

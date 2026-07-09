@@ -5,6 +5,7 @@
 #include "controllers/ClockController.h"
 #include "controllers/AnalysisController.h"
 #include "controllers/ReminderController.h"
+#include "controllers/AuthController.h"
 
 int main() {
     auto& app = drogon::app();
@@ -14,6 +15,7 @@ int main() {
     app.registerController(std::make_shared<ClockController>());
     app.registerController(std::make_shared<AnalysisController>());
     app.registerController(std::make_shared<ReminderController>());
+    app.registerController(std::make_shared<AuthController>());
 
     app.registerBeginningAdvice([&app]() {
         auto db = app.getDbClient("default");
