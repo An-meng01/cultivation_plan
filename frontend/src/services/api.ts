@@ -11,9 +11,25 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 api.interceptors.response.use(
   (res) => res.data,
-  (err) => Promise.reject(err.response?.data || err),
+  (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('username');
+      localStorage.removeItem('userId');
+      window.location.href = '/login';
+    }
+    return Promise.reject(err.response?.data || err);
+  },
 );
 
 export type TaskType = 'daily' | 'periodic' | 'once';
@@ -42,6 +58,7 @@ export interface TaskForm {
   description?: string;
   topic?: string;
   priority?: number;
+  source?: 'custom' | 'system';
   needReviewReminder?: boolean;
   deadline?: string;
   type?: TaskType;
@@ -56,13 +73,24 @@ export interface ClockRecord {
   checkInTime: string;
 }
 
+export interface TopicDistItem {
+  topic: string;
+  count: number;
+}
+
+export interface TopicRateItem {
+  topic: string;
+  completed: number;
+  rate: number;
+}
+
 export interface AnalysisOverview {
   totalTasks: number;
   completed: number;
   pending: number;
   completionRate: number;
-  topicDistribution: Record<string, number>;
-  topicCompletionRate: Record<string, number>;
+  topicDist: TopicDistItem[];
+  topicRate: TopicRateItem[];
 }
 
 export interface DailyStat {
@@ -125,6 +153,11 @@ export function fetchAnalysisOverview() {
 export function fetchDailyStats(start: string, end: string) {
   if (USE_MOCK) return mock.mockGetDailyStats(start, end) as any;
   return api.get('/analysis/daily', { params: { start, end } }) as Promise<{ code: number; data: DailyStat[] }>;
+}
+
+export interface PriorityDistItem {
+  priority: number;
+  count: number;
 }
 
 export function fetchPriorityDistribution() {

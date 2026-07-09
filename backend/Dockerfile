@@ -7,11 +7,12 @@ RUN apt-get update && apt-get install -y \
     libjsoncpp-dev libssl-dev \
     libboost-dev libboost-system-dev libboost-thread-dev \
     libpq-dev postgresql-client \
-    git && \
-    rm -rf /var/lib/apt/lists/*
+    uuid-dev \
+    zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN git clone --depth 1 --branch v1.9.0 https://github.com/drogonframework/drogon /tmp/drogon && \
-    cd /tmp/drogon && mkdir build && cd build && \
+COPY drogon_local /tmp/drogon
+RUN cd /tmp/drogon && mkdir build && cd build && \
     cmake .. -DCMAKE_BUILD_TYPE=Release && \
     make -j$(nproc) && make install && \
     ldconfig && rm -rf /tmp/drogon
@@ -22,6 +23,7 @@ COPY controllers/ ./controllers/
 COPY models/ ./models/
 COPY services/ ./services/
 COPY filters/ ./filters/
+COPY utils/ ./utils/
 COPY main.cc ./
 
 RUN mkdir build && cd build && \

@@ -55,7 +55,7 @@ Response 200: { "code": 0, "data": { ... } }
 ### 更新任务
 ```
 PUT /tasks/:id
-Body: { "title": "...", "completed": true }
+Body: { "title": "...", "description": "...", "topic": "...", "priority": 1, "completed": true }
 Response 200: { "code": 0, "message": "ok" }
 ```
 
@@ -116,8 +116,16 @@ Response 200:
     "completed": 6,
     "pending": 4,
     "completionRate": 60.0,
-    "topicDistribution": { "编程": 5, "英语": 3, "数学": 2 },
-    "topicCompletionRate": { "编程": 80.0, "英语": 33.3, "数学": 50.0 }
+    "topicDist": [
+      { "topic": "编程", "count": 5 },
+      { "topic": "英语", "count": 3 },
+      { "topic": "数学", "count": 2 }
+    ],
+    "topicRate": [
+      { "topic": "编程", "completed": 4, "rate": 80.0 },
+      { "topic": "英语", "completed": 1, "rate": 33.3 },
+      { "topic": "数学", "completed": 1, "rate": 50.0 }
+    ]
   }
 }
 ```
@@ -134,10 +142,21 @@ Response 200:
     ...
   ]
 }
+// rate = 截止当日累积完成率（累积完成数 / 截止当日累积总任务数 × 100）
 ```
 
 ### 优先级分布
 ```
 GET /analysis/priorities
-Response 200: { "code": 0, "data": { "0": 2, "1": 5, "2": 3, "3": 1 } }
+Response 200: { "code": 0, "data": [ { "priority": 0, "count": 2 }, { "priority": 1, "count": 5 }, { "priority": 2, "count": 3 }, { "priority": 3, "count": 1 } ] }
+```
+
+---
+
+## 系统模块
+
+### 健康检查
+```
+GET /health
+Response 200: { "code": 0, "message": "ok" }
 ```

@@ -216,7 +216,7 @@ make -j$(nproc)
 | -------------------------- | ---- | -------------- | ----------------------- | -------------------------------------- |
 | `/api/analysis/overview`   | GET  | 总体概览       | -                       | `{ code:0, data:AnalysisOverview }`    |
 | `/api/analysis/daily`      | GET  | 每日统计       | Query: `?start=&end=`   | `{ code:0, data:[DailyStat] }`         |
-| `/api/analysis/priorities` | GET  | 优先级分布     | -                       | `{ code:0, data:{ "0":2, "1":5 } }`   |
+| `/api/analysis/priorities` | GET  | 优先级分布     | -                       | `{ code:0, data:[{ priority:0, count:2 }, { priority:1, count:5 }] }`   |
 
 ### 数据模型
 
@@ -231,8 +231,8 @@ interface Task {
 interface AnalysisOverview {
   totalTasks: number; completed: number; pending: number;
   completionRate: number;
-  topicDistribution: Record<string, number>;
-  topicCompletionRate: Record<string, number>;
+  topicDist: { topic: string; count: number }[];
+  topicRate: { topic: string; completed: number; rate: number }[];
 }
 
 interface DailyStat { date: string; added: number; completed: number; rate: number; }
@@ -306,7 +306,7 @@ docs: 更新 API 文档，补充统计分析接口
 ### 已知问题
 - 未实现用户鉴权，当前所有操作使用默认用户 ID=1
 - 提醒功能仅输出日志，未集成邮件/推送通道
-- 前端未实现按优先级/主题筛选（API 已支持，待接入 UI）
+- 前端筛选 UI 控件已布局，待完整接入后端 API 参数
 
 ### 后续规划
 - [ ] 用户注册与 JWT 鉴权

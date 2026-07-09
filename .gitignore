@@ -9,3 +9,8 @@ __pycache__/
 *.swp
 *.swo
 .vscode/
+# vendored Drogon (nested git repo, not tracked)
+drogon_local/
+super-productivity-ref/
+# TS build artifacts
+*.tsbuildinfo

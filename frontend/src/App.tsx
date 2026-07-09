@@ -27,7 +27,7 @@ const menuItems = [
   { key: '/analysis', icon: <BarChartOutlined />, label: '任务分析' },
 ];
 
-function App() {
+function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isDark, toggle } = useTheme();
@@ -139,6 +139,26 @@ function App() {
         </Content>
       </Layout>
     </Layout>
+  );
+}
+
+function App() {
+  const token = localStorage.getItem('token');
+
+  if (!token) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/*" element={<AppLayout />} />
+      <Route path="/login" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 

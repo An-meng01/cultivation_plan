@@ -1,12 +1,4 @@
 # 学习养成计划 — 系统设计说明书
-
-版本 1.0 | 2026-07
-
-> 本文档依据课程作业要求，包含以下八个部分：
-> 1. 系统体系架构　2. 系统功能结构（层次结构）　3. 系统用例的时序图及说明
-> 4. 复杂功能的算法设计（流程图 + 伪码）　5. 面向对象方法类图的详细设计
-> 6. 接口设计　7. 数据库物理设计　8. UI（界面）设计
-
 ---
 
 ## 1. 系统体系架构
@@ -71,13 +63,25 @@ flowchart LR
 系统功能按「模块 → 子功能 → 功能点」三级层次组织：
 
 ```mermaid
-flowchart TD
-    Root[学习养成计划系统] --> M1[学习任务模块]
-    Root --> M2[任务提醒模块]
-    Root --> M3[打卡任务模块]
-    Root --> M4[数据展示模块]
-    Root --> M5[任务分析模块]
-    Root --> M6[系统基础]
+flowchart LR
+    Root[学习养成计划系统]
+
+    subgraph 核心功能
+        direction TB
+        M1[学习任务模块]
+        M2[任务提醒模块]
+        M3[打卡任务模块]
+    end
+
+    subgraph 辅助功能
+        direction TB
+        M4[数据展示模块]
+        M5[任务分析模块]
+        M6[系统基础]
+    end
+
+    Root --> 核心功能
+    Root --> 辅助功能
 
     M1 --> M1a[自定义任务创建]
     M1 --> M1b[系统推荐任务]
@@ -143,7 +147,9 @@ sequenceDiagram
     UI->>API: GET /api/clock-records
     API->>CC: 转发
     CC->>DB: SELECT 当月记录
-    DB-->>UI: 渲染 CalendarHeatmap
+    DB-->>CC: 当月打卡记录
+    CC-->>API: {code:0, data: records}
+    API-->>UI: 渲染 CalendarHeatmap
     U->>UI: 点击某任务「打卡」
     UI->>API: POST /api/clock-in {taskId}
     API->>CC: 转发
@@ -201,11 +207,30 @@ sequenceDiagram
     API->>AC: 转发三个请求
     AC->>SS: 调用聚合方法
     SS->>DB: SQL 分组聚合
-    DB-->>UI: 概览/每日/优先级分布
+    DB-->>SS: 概览/每日/优先级分布
+    SS-->>AC: 聚合结果
+    AC-->>API: {code:0, data:...} 响应
+    API-->>UI: 渲染图表
     UI->>UI: 渲染卡片+折线/柱状/饼图+表格
 ```
 
 **说明**：分析页并发请求三类统计接口，后端 StatsService 使用 SQL 聚合分别计算总体概览、每日趋势与优先级分布，前端以图表和明细表综合呈现。
+
+**`/analysis/overview` 响应示例**
+
+```json
+{
+  "code": 0,
+  "data": {
+    "totalTasks": 12,
+    "completed": 8,
+    "pending": 4,
+    "completionRate": 66.7,
+    "topicDist": [{"topic":"编程","count":5}],
+    "topicRate": [{"topic":"编程","completed":4,"rate":80}]
+  }
+}
+```
 
 ---
 
@@ -222,7 +247,8 @@ flowchart TD
     C -->|是| Z[结束]
     C -->|否| D[取下一任务 t]
     D --> E["interval = map(t.priority)<br/>3->1, 2->2, 1->6, 0->12"]
-    E --> F{"pollCount % interval == 0<br/>且 !reminded(t.id, batch)?"}
+    E --> E2["batch = floor(pollCount / interval)"]
+    E2 --> F{"pollCount % interval == 0<br/>且 !reminded(t.id, batch)?"}
     F -->|否| G{还有任务?}
     F -->|是| H["触发提醒<br/>日志/推送"]
     H --> I["标记 reminded(t.id, batch)"]
@@ -234,20 +260,36 @@ flowchart TD
 **伪码**
 
 ```
+// 优先级 → 提醒轮次间隔映射表
+//   紧急(3)每轮提醒, 高(2)每2轮, 中(1)每6轮, 低(0)每12轮
 REMINDER_INTERVAL = {3:1, 2:2, 1:6, 0:12}
-remindedCache = {}   // key: taskId_batch
 
+// 已提醒缓存: key = taskId_batch
+//   batch = floor(pollCount / 轮次窗口), 每个 batch 内对同一任务仅提醒一次
+//   ⚠️ 当前为内存缓存, 重启会丢失（重启后 pollCount 重置为 0，可能导致短时间内对部分任务重复提醒）
+//   TODO: 改用 Redis 或 DB 表持久化已提醒状态及 pollCount
+remindedCache = {}
+
+// pollReminder: 定时轮询提醒
+// 输入: pollCount — 全局递增计数器, 每次轮询自增 1, 重启时从持久层恢复
+// 输出: 调用 fireReminder 输出提醒日志 (未来: 邮件/WebSocket 推送)
 procedure pollReminder(pollCount):
+    // 1. 查询候选任务: 未完成 + 开启了复习提醒 + 截止时间在 ±1h 内
     candidates = SQL(
         "SELECT id, priority, title, deadline FROM tasks
          WHERE completed=FALSE AND need_review_reminder=TRUE
            AND deadline BETWEEN NOW()-INTERVAL '1h' AND NOW()+INTERVAL '1h'")
+
+    // 2. 遍历每个候选任务, 按优先级决定是否触发提醒
     for t in candidates:
         interval = REMINDER_INTERVAL[t.priority]
-        key = t.id + "_" + batchId(pollCount)
+        batch = floor(pollCount / interval)           // 当前轮次所属的 batch
+        key = t.id + "_" + batch                     // cache key: taskId_batch
+
+        // 条件: 当前轮次是该优先级的提醒轮次, 且本 batch 内尚未提醒
         if pollCount % interval == 0 and key not in remindedCache:
-            fireReminder(t)            // 当前输出日志，未来: 邮件/WebSocket
-            remindedCache.add(key)
+            fireReminder(t)                          // 输出提醒日志
+            remindedCache.add(key)                   // 标记已提醒, 防重复
 ```
 
 ### 4.2 完成率与每日统计聚合算法
@@ -258,10 +300,12 @@ procedure pollReminder(pollCount):
 flowchart TD
     A[接收统计请求 start,end] --> B["overview: 聚合总任务/已完成"]
     B --> C["completionRate = completed/total*100<br/>(total=0 则 0)"]
-    A --> D[daily: 按 DATE 分组]
+    A --> C0["cumulativeTotal = COUNT(created_at &lt; start)<br/>截止 start 前总任务数"]
+    A --> D["daily: 遍历日期区间"]
     D --> E["added = COUNT(created_at)"]
     D --> F["completed = COUNT(completed_at)"]
-    E --> G["rate = completed/(added+completed)*100"]
+    E --> G["cumulativeTotal += added<br/>rate = completed/cumulativeTotal*100"]
+    C0 --> D
     A --> H[priorities: 按 priority 分组 COUNT]
     C --> I[返回 JSON]
     G --> I
@@ -271,40 +315,108 @@ flowchart TD
 **伪码**
 
 ```
+// analyzeOverview: 总体概览统计
+// 输入: userId — 当前用户
+// 返回: { totalTasks, completed, pending, completionRate, topicDist, topicRate }
 procedure analyzeOverview(userId):
-    total     = SQL("SELECT COUNT(*) FROM tasks WHERE user_id=$1")
-    completed = SQL("SELECT COUNT(*) FROM tasks WHERE user_id=$1 AND completed=TRUE")
-    rate      = total==0 ? 0 : completed/total*100
-    topicDist = SQL("SELECT topic, COUNT(*) ... GROUP BY topic")
-    topicRate = SQL("SELECT topic, COUNT(*) FILTER(completed) ... GROUP BY topic")
-    return {totalTasks, completed, pending, completionRate, topicDist, topicRate}
+    // 1. 总任务数和已完成数
+    totalTasks = SQL("SELECT COUNT(*) FROM tasks WHERE user_id=$1", userId)
+    completed  = SQL("SELECT COUNT(*) FROM tasks WHERE user_id=$1 AND completed=TRUE",
+                     userId)
+    pending    = totalTasks - completed                          // 待完成数
 
+    // 2. 完成率 (分母为 0 时返回 0)
+    completionRate = totalTasks == 0 ? 0 : completed / totalTasks * 100
+
+    // 3. 按主题分组统计: 各主题任务数
+    //    bind: $1=userId
+    topicDist = SQL("SELECT topic, COUNT(*) AS count FROM tasks
+                     WHERE user_id=$1 GROUP BY topic ORDER BY count DESC", userId)
+
+    // 4. 按主题分组统计: 各主题完成率
+    //    bind: $1=userId
+    topicRate = SQL("SELECT topic,
+                            COUNT(*) FILTER (WHERE completed=TRUE) AS completed,
+                            ROUND(COUNT(*) FILTER (WHERE completed=TRUE) * 100.0
+                                  / COUNT(*), 1) AS rate
+                     FROM tasks WHERE user_id=$1
+                     GROUP BY topic ORDER BY rate DESC", userId)
+
+    return { totalTasks, completed, pending, completionRate, topicDist, topicRate }
+
+
+// analyzeDaily: 每日趋势统计
+// 输入: userId, start(起始日期), end(截止日期)
+// 返回: [{ date, added, completed, rate }]  按日期升序
 procedure analyzeDaily(userId, start, end):
-    added     = SQL("SELECT DATE(created_at) d, COUNT(*) FROM tasks
-                     WHERE user_id=$1 AND created_at BETWEEN $2 AND $3 GROUP BY d")
-    completed = SQL("SELECT DATE(completed_at) d, COUNT(*) FROM tasks
-                     WHERE user_id=$1 AND completed_at BETWEEN $2 AND $3 GROUP BY d")
-    for each date: rate = completed/(added+completed)*100
+    // 1. 按创建日期统计每日新增任务数 (bind: $1=userId, $2=start, $3=end)
+    addedRows = SQL("SELECT DATE(created_at) AS d, COUNT(*) AS cnt FROM tasks
+                     WHERE user_id=$1 AND created_at BETWEEN $2 AND $3
+                     GROUP BY d ORDER BY d", userId, start, end)
+
+    // 2. 按完成日期统计每日完成任务数 (bind: $1=userId, $2=start, $3=end)
+    completedRows = SQL("SELECT DATE(completed_at) AS d, COUNT(*) AS cnt FROM tasks
+                         WHERE user_id=$1 AND completed_at BETWEEN $2 AND $3
+                         GROUP BY d ORDER BY d", userId, start, end)
+
+    // 3. 合并两结果集: 按日期归并, 计算每日完成率
+    //    完成率 = 当日完成数 / (截止当日已存在的总任务数) * 100
+    dailyList = []
+    accTotal = SQL("SELECT COUNT(*) FROM tasks
+                    WHERE user_id=$1 AND created_at < $2", userId, start)
+    for each date in dateRange(start, end):
+        added    = lookup(addedRows, date, default=0)
+        compl    = lookup(completedRows, date, default=0)
+        accTotal = accTotal + added
+        rate     = accTotal == 0 ? 0 : ROUND(compl * 100.0 / accTotal, 1)
+        dailyList.append({ date, added, completed: compl, rate })
+
     return dailyList
 
+
+// analyzePriorities: 优先级分布统计
+// 输入: userId — 当前用户
+// 返回: [{ priority, count }]  按优先级分组
 procedure analyzePriorities(userId):
-    return SQL("SELECT priority, COUNT(*) FROM tasks WHERE user_id=$1 GROUP BY priority")
+    // bind: $1=userId
+    return SQL("SELECT priority, COUNT(*) AS count FROM tasks
+                WHERE user_id=$1 GROUP BY priority ORDER BY priority", userId)
 ```
 
 ### 4.3 打卡去重算法
 
 ```
+// 打卡签到算法
+// 输入: userId(当前用户), taskId(目标任务), today(打卡日期)
+// 返回: 0=成功, HTTP状态码=错误
 procedure clockIn(userId, taskId, today):
-    if taskId is null: return 400
-    task = SQL("SELECT * FROM tasks WHERE id=$1 AND user_id=$2")
-    if task is null: return 404
+    // 1. 参数校验: taskId 不可为空
+    if taskId is null:
+        return 400                         // HTTP 400 Bad Request
+
+    // 2. 查询任务是否存在, 同时校验归属 (bind: $1=taskId, $2=userId)
+    task = SQL("SELECT id, title FROM tasks WHERE id=$1 AND user_id=$2",
+               taskId, userId)
+    if task is null:
+        return 404                         // HTTP 404 Not Found
+
+    // 3. 当日重复打卡检测 (bind: $1=taskId, $2=userId, $3=today)
+    //    同一用户对同一任务每天只能打卡一次
     exist = SQL("SELECT 1 FROM clock_records
-                 WHERE task_id=$1 AND user_id=$2 AND DATE(check_in_time)=$3")
-    if exist: return 409
-    SQL("INSERT INTO clock_records(user_id,task_id,task_title,check_in_time)
-         VALUES($1,$2,$3,NOW())")
-    SQL("UPDATE tasks SET completed=TRUE, completed_at=NOW() WHERE id=$1")
-    return 0
+                 WHERE task_id=$1 AND user_id=$2 AND DATE(check_in_time)=$3",
+                taskId, userId, today)
+    if exist:
+        return 409                         // HTTP 409 Conflict
+
+    // 4. 写入打卡记录, 保存任务标题快照 (bind: $1=userId, $2=taskId, $3=task.title)
+    //    标题快照确保即使任务后续被修改或删除, 打卡记录仍保留打卡时的标题
+    SQL("INSERT INTO clock_records(user_id, task_id, task_title, check_in_time)
+         VALUES($1, $2, $3, NOW())", userId, taskId, task.title)
+
+    // 5. 将任务标记为已完成 (bind: $1=taskId)
+    SQL("UPDATE tasks SET completed=TRUE, completed_at=NOW() WHERE id=$1", taskId)
+
+    return 0                               // 成功
 ```
 
 ---
@@ -381,6 +493,7 @@ classDiagram
     ReminderService --> Task : queries
     AuthFilter <.. TaskController : filters
     AuthFilter <.. ClockController : filters
+    AuthFilter <.. AnalysisController : filters
 ```
 
 **说明**
@@ -396,13 +509,20 @@ classDiagram
     class ApiService {
         +getTasks(filter) Promise~Task[]~
         +createTask(body) Promise
+        +getTask(id) Promise~Task~
+        +updateTask(id,body) Promise
+        +deleteTask(id) Promise
         +clockIn(taskId) Promise
+        +getRecords(filter) Promise~ClockRecord[]~
         +getOverview() Promise~AnalysisOverview~
+        +getDaily(start,end) Promise~DailyStat[]~
+        +getPriorities() Promise~PriorityDist[]~
     }
     class useTasks {
         +tasks: Task[]
         +load() void
         +create() void
+        +update(id,body) void
         +remove() void
     }
     class useClockRecords {
@@ -417,6 +537,15 @@ classDiagram
         +completed: boolean
         +deadline: string|null
     }
+    class ClockRecord {
+        +taskId: number
+        +taskTitle: string
+        +checkInTime: string
+    }
+    class TopicProgress {
+        +topic: string
+        +percent: number
+    }
     class TaskCard {
         +task: Task
         +onComplete() void
@@ -429,6 +558,10 @@ classDiagram
         +records: ClockRecord[]
         +render() void
     }
+    class AnalysisPage {
+        +overview: AnalysisOverview
+        +dailyStats: DailyStat[]
+    }
     class StatisticsChart {
         +type: "line"|"bar"|"pie"
         +data: any
@@ -437,7 +570,7 @@ classDiagram
     ApiService <.. useClockRecords : calls
     useTasks --> TaskCard : feeds
     useClockRecords --> CalendarHeatmap : feeds
-    StatisticsChart <.. Analysis : used by
+    StatisticsChart <.. AnalysisPage : used by
 ```
 
 ---
@@ -455,10 +588,10 @@ classDiagram
 
 | 方法   | 端点                            | 请求                                            | 说明           |
 | ------ | ------------------------------- | ----------------------------------------------- | -------------- |
-| GET    | `/api/tasks`                    | Query: `topic/priority/source/completed`        | 任务列表       |
+| GET    | `/api/tasks`                    | Query: `topic=/priority=/source=/completed=`   | 任务列表       |
 | POST   | `/api/tasks`                    | `{title,description?,topic?,priority?,needReviewReminder?,deadline?}` | 创建任务 |
 | GET    | `/api/tasks/{id}`               | —                                               | 单个任务       |
-| PUT    | `/api/tasks/{id}`               | `{title?,description?,topic?,priority?,completed?}` | 更新任务  |
+| PUT    | `/api/tasks/{id}`               | `{title?,description?,topic?,priority?,completed?}`           | 更新任务  |
 | DELETE | `/api/tasks/{id}`               | —                                               | 删除任务       |
 | PUT    | `/api/tasks/{id}/complete`      | —                                               | 完成任务       |
 | GET    | `/api/tasks/system`             | —                                               | 系统推荐任务   |
@@ -507,7 +640,7 @@ classDiagram
 |                | completed_at         | TIMESTAMP         | NULL                                         |
 | clock_records  | id                   | SERIAL            | PK                                           |
 |                | user_id              | INTEGER           | FK→users NOT NULL  `idx_clock_user_date(user_id,check_in_time)` |
-|                | task_id              | INTEGER           | FK→tasks NOT NULL  `idx_clock_task_id`       |
+|                | task_id              | INTEGER           | FK→tasks ON DELETE SET NULL  `idx_clock_task_id` |
 |                | task_title           | VARCHAR(255)      | NOT NULL                                     |
 |                | check_in_time        | TIMESTAMP         | DEFAULT NOW()                                |
 
@@ -529,15 +662,18 @@ CREATE TABLE tasks (
     completed_at TIMESTAMP
 );
 CREATE INDEX idx_tasks_user_id ON tasks(user_id);
+CREATE INDEX idx_tasks_topic ON tasks(topic);
+CREATE INDEX idx_tasks_completed ON tasks(completed);
 CREATE INDEX idx_tasks_deadline ON tasks(deadline);
 
 CREATE TABLE clock_records (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    task_id         INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
     task_title VARCHAR(255) NOT NULL,
     check_in_time TIMESTAMP DEFAULT NOW()
 );
+CREATE UNIQUE INDEX uk_clock_task_date ON clock_records(COALESCE(task_id, 0), user_id, DATE(check_in_time));
 CREATE INDEX idx_clock_user_date ON clock_records(user_id, check_in_time);
 ```
 
@@ -545,7 +681,7 @@ CREATE INDEX idx_clock_user_date ON clock_records(user_id, check_in_time);
 
 - **存储引擎**：PostgreSQL 默认堆表；所有查询使用参数化占位符 `$1,$2` 防注入。
 - **索引策略**：高频过滤列（user_id/topic/completed/deadline）建单列索引；打卡日历按 `(user_id, check_in_time)` 复合索引加速按月查询。
-- **外键级联**：用户删除级联删除其任务与打卡记录；任务删除级联打卡记录（打卡标题快照仍保留在记录中）。
+- **外键级联**：用户删除级联删除其任务与打卡记录；任务删除时打卡记录保留（task_id 置为 NULL，标题快照仍可查阅）。
 
 ---
 
@@ -555,11 +691,11 @@ CREATE INDEX idx_clock_user_date ON clock_records(user_id, check_in_time);
 
 ```
 ┌──────────────┬──────────────────────────────────────────┐
-│   📚 学习养成│  内容区 (路由切换)                        │
+│   学习养成    │  内容区 (路由切换)                        │
 │  ─────────── │  ────────────────────────────────────    │
 │  ▸ 仪表盘     │                                          │
 │  ▸ 任务管理   │                                          │
-│  ▸ 打卡签到   │      （当前页面内容）                     │
+│  ▸ 打卡签到   │      (当前页面内容)                       │
 │  ▸ 任务分析   │                                          │
 │              │                                          │
 └──────────────┴──────────────────────────────────────────┘
@@ -586,21 +722,21 @@ CREATE INDEX idx_clock_user_date ON clock_records(user_id, check_in_time);
 ┌────────────────────────────────────────────────────────┐
 │ [+ 新建任务]   筛选: 主题[▾] 优先级[▾] 来源[▾] 状态[▾]    │
 ├────────────────────────────────────────────────────────┤
-│ ┌─ 卡片: 编程练习                          [紧急][逾期] │
-│ │ 描述: LeetCode 每日一题                   [完成][删除]│
+│ ┌─ 卡片: 编程练习                          [紧急][逾期]  │
+│ │ 描述: LeetCode 每日一题                   [完成][删除] │
 │ └───────────────────────────────────────────────────── │
 │ ┌─ 卡片: 英语单词                          [中][即将到期]│
 │ │ ...                                                  │
 │ └───────────────────────────────────────────────────── │
 ├────────────────────────────────────────────────────────┤
-│ 系统推荐任务 (一键添加)                                 │
+│ 系统推荐任务 (一键添加)                                  │
 │ [+ 每日英语单词背诵] [+ 编程练习] [+ 阅读技术文章] ...    │
 └────────────────────────────────────────────────────────┘
 
 新建任务弹窗 (Modal + Form):
    标题* [________________]   主题 [________]
    优先级 ( )低(绿)( )中(蓝)( )高(橙)( )紧急(红)
-   截止时间 [2026-07-10 📅]
+   截止时间 [2026-07-10]
    复习提醒 [开关]
    [取消]  [提交]
 ```
@@ -610,8 +746,8 @@ CREATE INDEX idx_clock_user_date ON clock_records(user_id, check_in_time);
 ```
 ┌────────────────────────┬────────────────────────────────┐
 │ 待打卡任务              │  打卡日历 (2026-07)             │
-│ ┌────────────────────┐ │  一 二 三 四 五 六 日           │
-│ │ 编程练习   [打卡]   │ │  1  2  3● 4  5  6  7            │
+│ ┌────────────────────┐ │  一 二 三 四 五 六 日            │
+│ │ 编程练习   [打卡]   │ │  1  2  3● 4  5  6  7           │
 │ └────────────────────┘ │  8  9 10 11●12 13 14           │
 │ ┌────────────────────┐ │  15 16 17 18 19 20 21          │
 │ │ 数学题     [已打卡] │ │  ●=已打卡  蓝圈=今天             │

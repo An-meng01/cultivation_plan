@@ -14,11 +14,11 @@
     {
       "name": "default",
       "rdbms": "postgresql",
-      "host": "${DB_HOST}",
-      "port": "${DB_PORT}",
-      "dbname": "${DB_NAME}",
-      "user": "${DB_USER}",
-      "password": "${DB_PASSWORD}",
+      "host": "postgres",
+      "port": 5432,
+      "dbname": "study_planner",
+      "user": "planner",
+      "password": "planner123",
       "size": 10
     }
   ]

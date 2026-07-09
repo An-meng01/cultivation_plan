@@ -1,5 +1,6 @@
 #include "controllers/ClockController.h"
 #include "models/ClockRecord.h"
+#include "utils/AuthContext.h"
 #include <drogon/drogon.h>
 
 using namespace drogon;
@@ -29,24 +30,38 @@ void ClockController::clockIn(
     }
 
     int taskId = (*json)["taskId"].asInt();
+    int userId = auth_utils::getUserId(req);
     auto db = app().getDbClient("default");
 
-    auto f = db->execSqlCoro(
-        "SELECT title FROM tasks WHERE id = $1", taskId);
+    auto result = db->execSqlSync(
+        "SELECT id, title FROM tasks WHERE id = $1 AND user_id = $2", taskId, userId);
 
-    if (f.result().empty()) {
+    if (result.empty()) {
         auto resp = HttpResponse::newHttpJsonResponse(fail(404, "task not found"));
         callback(resp);
         return;
     }
 
-    std::string title = f.result()[0]["title"].as<std::string>();
-    db->execSqlCoro(
+    std::string title = result[0]["title"].as<std::string>();
+
+    auto dup = db->execSqlSync(
+        "SELECT 1 FROM clock_records "
+        "WHERE task_id = $1 AND user_id = $2 AND DATE(check_in_time) = CURRENT_DATE",
+        taskId, userId);
+
+    if (!dup.empty()) {
+        auto resp = HttpResponse::newHttpJsonResponse(fail(409, "already checked in today"));
+        resp->setStatusCode(k409Conflict);
+        callback(resp);
+        return;
+    }
+
+    db->execSqlSync(
         "INSERT INTO clock_records (user_id, task_id, task_title) "
         "VALUES ($1, $2, $3)",
-        1, taskId, title);
+        userId, taskId, title);
 
-    db->execSqlCoro(
+    db->execSqlSync(
         "UPDATE tasks SET completed = TRUE, completed_at = NOW() "
         "WHERE id = $1 AND completed = FALSE", taskId);
 
@@ -63,32 +78,26 @@ void ClockController::getRecords(
     auto params = req->parameters();
     auto db = app().getDbClient("default");
 
-    std::string sql =
-        "SELECT id, task_id, task_title, check_in_time "
-        "FROM clock_records WHERE user_id = $1";
-    auto it = params.find("taskId");
-    if (it != params.end()) {
-        sql += " AND task_id = " + it->second;
-    }
-    it = params.find("date");
-    if (it != params.end()) {
-        sql += " AND DATE(check_in_time) = '" + it->second + "'";
-    }
-    sql += " ORDER BY check_in_time DESC";
+    std::string taskId = params.find("taskId") != params.end() ? params.at("taskId") : "";
+    std::string date = params.find("date") != params.end() ? params.at("date") : "";
+    int userId = auth_utils::getUserId(req);
 
-    auto f = db->execSqlCoro(sql, 1);
+    auto result = db->execSqlSync(
+        "SELECT id, task_id, task_title, check_in_time "
+        "FROM clock_records WHERE user_id = $1"
+        " AND ($2 = '' OR task_id = $2::int)"
+        " AND ($3 = '' OR DATE(check_in_time) = $3::date)"
+        " ORDER BY check_in_time DESC",
+        userId, taskId, date);
 
     Json::Value arr(Json::arrayValue);
-    while (!f.done()) {
-        for (auto& row : f.result()) {
-            Json::Value j;
-            j["id"] = row["id"].as<int>();
-            j["taskId"] = row["task_id"].as<int>();
-            j["taskTitle"] = row["task_title"].as<std::string>();
-            j["checkInTime"] = row["check_in_time"].as<std::string>();
-            arr.append(j);
-        }
-        f.next();
+    for (const auto& row : result) {
+        Json::Value j;
+        j["id"] = row["id"].as<int>();
+        j["taskId"] = row["task_id"].isNull() ? Json::Value() : row["task_id"].as<int>();
+        j["taskTitle"] = row["task_title"].as<std::string>();
+        j["checkInTime"] = row["check_in_time"].as<std::string>();
+        arr.append(j);
     }
 
     auto resp = HttpResponse::newHttpJsonResponse(ok(arr));
