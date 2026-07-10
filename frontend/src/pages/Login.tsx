@@ -33,6 +33,8 @@ export default function Login() {
           localStorage.setItem('token', res.data.token);
           localStorage.setItem('username', res.data.username);
           localStorage.setItem('userId', String(res.data.userId));
+          localStorage.setItem('avatar', res.data.avatarUrl || '');
+          localStorage.setItem('avatarStatus', res.data.avatarStatus || 'none');
           message.success('登录成功');
           navigate('/', { replace: true });
         } else {
@@ -97,8 +99,9 @@ export default function Login() {
                   <Form.Item name="username" rules={[
                     { required: true, message: '请输入用户名' },
                     { min: 2, message: '用户名至少2个字符' },
+                    { max: 10, message: '用户名最多10个字符' },
                   ]}>
-                    <Input prefix={<UserOutlined />} placeholder="用户名" />
+                    <Input prefix={<UserOutlined />} placeholder="用户名（最多10个字符）" maxLength={10} />
                   </Form.Item>
                   <Form.Item name="password" rules={[
                     { required: true, message: '请输入密码' },
