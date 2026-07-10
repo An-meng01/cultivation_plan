@@ -1,6 +1,6 @@
 // 仪表盘首页：展示任务总览统计、学习进度条、每日趋势图与主题分布饼图。
 import { useEffect, useState } from 'react';
-import { Row, Col, Statistic, Card, Spin, message } from 'antd';
+import { Row, Col, Statistic, Card, Spin } from 'antd';
 import {
   CheckCircleOutlined,
   UnorderedListOutlined,
@@ -8,6 +8,7 @@ import {
   PercentageOutlined,
 } from '@ant-design/icons';
 import { fetchAnalysisOverview, fetchDailyStats, AnalysisOverview, DailyStat } from '../services/api';
+import { notifyError } from '../utils/response';
 import ProgressBarView from '../components/ProgressBar';
 import { DailyTrendChart, TopicPieChart } from '../components/StatisticsChart';
 import dayjs from 'dayjs';
@@ -30,7 +31,7 @@ export default function Dashboard() {
         setOverview(ov.data);
         setDailyStats(ds.data);
       } catch {
-        message.error('加载仪表盘数据失败');
+        notifyError('加载仪表盘数据失败');
       } finally {
         setLoading(false);
       }

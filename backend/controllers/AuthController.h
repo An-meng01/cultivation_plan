@@ -9,6 +9,7 @@ public:
         ADD_METHOD_TO(AuthController::login,    "/api/auth/login",    drogon::Post);
         ADD_METHOD_TO(AuthController::reg,      "/api/auth/register", drogon::Post);
         ADD_METHOD_TO(AuthController::me,       "/api/auth/me",       drogon::Get, "AuthFilter");
+        ADD_METHOD_TO(AuthController::uploadAvatar, "/api/auth/avatar", drogon::Post, "AuthFilter");
     METHOD_LIST_END
 
     void login(const drogon::HttpRequestPtr& req,
@@ -17,6 +18,8 @@ public:
              std::function<void(const drogon::HttpResponsePtr&)>&& callback);
     void me(const drogon::HttpRequestPtr& req,
             std::function<void(const drogon::HttpResponsePtr&)>&& callback);
+    void uploadAvatar(const drogon::HttpRequestPtr& req,
+                      std::function<void(const drogon::HttpResponsePtr&)>&& callback);
 };
 
 #endif

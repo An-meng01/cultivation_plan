@@ -34,6 +34,14 @@ function AppLayout() {
   const { isDark, toggle } = useTheme();
   const { token } = theme.useToken();
 
+  // 退出登录：清除本地身份并跳回登录页
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    localStorage.removeItem('userId');
+    navigate('/login', { replace: true });
+  };
+
   // 与粉色主题相搭、且与内容区有明显色差的侧边栏背景：亮色用较深的粉，暗色用酒红深粉
   const siderBg = isDark ? '#34182b' : '#ffd9ec';
 
@@ -59,7 +67,7 @@ function AppLayout() {
       {!isMobile && (
         <Sider
           width={collapsed ? 72 : 220}
-          style={{ background: siderBg, transition: 'width .25s, background .3s', overflow: 'hidden', boxShadow: '2px 0 8px rgba(214, 51, 132, 0.12)' }}
+          style={{ background: siderBg, transition: 'width .9s cubic-bezier(0.22, 1, 0.36, 1), background .3s', overflow: 'hidden', boxShadow: '2px 0 8px rgba(214, 51, 132, 0.12)' }}
           onMouseEnter={() => setCollapsed(false)}
           onMouseLeave={() => setCollapsed(true)}
         >
@@ -98,13 +106,19 @@ function AppLayout() {
             <span style={{ fontSize: 18, fontWeight: 600 }}>学习养成计划</span>
           </div>
 
-          {/* 右边：暗色主题开关（不变） */}
-          <Switch
-            checked={isDark}
-            onChange={toggle}
-            checkedChildren="🌙"
-            unCheckedChildren="☀"
-          />
+          {/* 右边：用户名 + 退出登录 + 暗色主题开关 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {localStorage.getItem('username') && (
+              <span style={{ color: token.colorText }}>{localStorage.getItem('username')}</span>
+            )}
+            <Button onClick={handleLogout}>退出登录</Button>
+            <Switch
+              checked={isDark}
+              onChange={toggle}
+              checkedChildren="🌙"
+              unCheckedChildren="☀"
+            />
+          </div>
         </Header>
 
         {/* 手机端的导航抽屉：从左侧滑出，里面放同一份菜单 */}
@@ -144,6 +158,9 @@ function AppLayout() {
 }
 
 function App() {
+  // 消费路由状态：登录/退出后 navigate 改变 URL 时，App 随之重渲染，
+  // 从而重新读取 localStorage 里的 token，避免停留在登录页不刷新
+  useLocation();
   const token = localStorage.getItem('token');
 
   if (!token) {

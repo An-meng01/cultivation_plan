@@ -1,8 +1,9 @@
 // 打卡签到页面：列出待打卡任务并提供打卡按钮，同时展示当月打卡日历热力图。
 import { useEffect, useState } from 'react';
-import { Row, Col, Button, List, Tag, message, Spin } from 'antd';
+import { Row, Col, Button, List, Tag, Spin } from 'antd';
 import { CheckCircleOutlined } from '@ant-design/icons';
 import { fetchTasks, Task } from '../services/api';
+import { notifyError } from '../utils/response';
 import { getCheckInStatus } from '../utils/taskStatus';
 import { useClockRecords } from '../hooks/useClockRecords';
 import CalendarHeatmap from '../components/CalendarHeatmap';
@@ -32,7 +33,7 @@ export default function ClockIn() {
       // 用炫酷特效替代朴素 toast；失败时仍用 message.error 提示
       setSuccessTitle(taskTitle);
     } catch {
-      message.error('打卡失败');
+      notifyError('打卡失败');
     }
   };
 

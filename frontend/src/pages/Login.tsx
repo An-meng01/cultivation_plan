@@ -6,12 +6,19 @@ import api from '../services/api';
 
 interface LoginRes {
   code: number;
-  data?: { token: string; userId: number; username: string };
+  data?: {
+    token: string;
+    userId: number;
+    username: string;
+    avatarUrl?: string;
+    avatarStatus?: string;
+  };
   message?: string;
 }
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('login');
   const navigate = useNavigate();
 
   const handleSubmit = async (values: { username: string; password: string }, mode: 'login' | 'register') => {
@@ -22,11 +29,20 @@ export default function Login() {
         : api.post('/auth/register', values)) as unknown as LoginRes;
 
       if (res.code === 0 && res.data) {
-        localStorage.setItem('token', res.data.token);
-        localStorage.setItem('username', res.data.username);
-        localStorage.setItem('userId', String(res.data.userId));
-        message.success(mode === 'login' ? '登录成功' : '注册成功');
-        navigate('/', { replace: true });
+        if (mode === 'login') {
+          localStorage.setItem('token', res.data.token);
+          localStorage.setItem('username', res.data.username);
+          localStorage.setItem('userId', String(res.data.userId));
+          message.success('登录成功');
+          navigate('/', { replace: true });
+        } else {
+          // 注册成功后不自动登录，要求用户重新登录
+          localStorage.removeItem('token');
+          localStorage.removeItem('username');
+          localStorage.removeItem('userId');
+          message.success('注册成功，请登录');
+          setActiveTab('login');
+        }
       } else {
         message.error(res.message || '操作失败');
       }
@@ -51,6 +67,8 @@ export default function Login() {
         </h2>
         <Tabs
           centered
+          activeKey={activeTab}
+          onChange={setActiveTab}
           items={[
             {
               key: 'login',

@@ -1,7 +1,8 @@
 // 任务分析页面：展示总览统计指标、每日趋势/完成柱状图、主题分布饼图与明细表格。
 import { useEffect, useState } from 'react';
-import { Row, Col, Card, Table, Statistic, Spin, message } from 'antd';
+import { Row, Col, Card, Table, Statistic, Spin } from 'antd';
 import { fetchAnalysisOverview, fetchDailyStats, AnalysisOverview, DailyStat } from '../services/api';
+import { notifyError } from '../utils/response';
 import { DailyTrendChart, DailyBarChart, TopicPieChart } from '../components/StatisticsChart';
 import dayjs from 'dayjs';
 
@@ -23,7 +24,7 @@ export default function Analysis() {
         setOverview(ov.data);
         setDailyStats(ds.data);
       } catch {
-        message.error('加载分析数据失败');
+        notifyError('加载分析数据失败');
       } finally {
         setLoading(false);
       }

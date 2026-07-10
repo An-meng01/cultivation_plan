@@ -1,8 +1,10 @@
 CREATE TABLE IF NOT EXISTS users (
-    id          SERIAL PRIMARY KEY,
-    username    VARCHAR(100) UNIQUE NOT NULL,
-    password    VARCHAR(255) NOT NULL,
-    created_at  TIMESTAMP DEFAULT NOW()
+    id            SERIAL PRIMARY KEY,
+    username      VARCHAR(100) UNIQUE NOT NULL,
+    password      VARCHAR(255) NOT NULL,
+    created_at    TIMESTAMP DEFAULT NOW(),
+    avatar_url    TEXT,
+    avatar_status VARCHAR(20) DEFAULT 'none' CHECK (avatar_status IN ('none', 'pending', 'approved', 'rejected'))
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
