@@ -6,6 +6,8 @@ import {
   IntervalUnit,
   ClockRecord,
   AnalysisOverview,
+  TopicDistItem,
+  TopicRateItem,
   DailyStat,
 } from './api';
 
@@ -226,9 +228,18 @@ export async function mockGetAnalysisOverview() {
   for (const k of Object.keys(topicDistribution)) {
     topicCompletionRate[k] = Math.round(((topicCompleted[k] || 0) / topicDistribution[k]) * 1000) / 10;
   }
+  const topicDist: TopicDistItem[] = Object.keys(topicDistribution).map((k) => ({
+    topic: k,
+    count: topicDistribution[k],
+  }));
+  const topicRate: TopicRateItem[] = Object.keys(topicCompletionRate).map((k) => ({
+    topic: k,
+    completed: topicCompleted[k] || 0,
+    rate: topicCompletionRate[k],
+  }));
   const data: AnalysisOverview = {
     totalTasks: total, completed, pending, completionRate,
-    topicDistribution, topicCompletionRate,
+    topicDist, topicRate,
   };
   return { code: 0, data };
 }

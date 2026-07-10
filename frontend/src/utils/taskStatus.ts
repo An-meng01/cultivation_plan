@@ -37,9 +37,13 @@ function isCheckedInCurrentCycle(task: Task, records: ClockRecord[]): boolean {
     const today = dayjs().format('YYYY-MM-DD');
     return recs.some((r) => dayjs(r.checkInTime).format('YYYY-MM-DD') === today);
   }
-  if (task.type === 'periodic') {
+  if (task.type === 'periodic' && task.intervalValue && task.intervalUnit) {
     const start = task.lastCheckIn ? dayjs(task.lastCheckIn) : dayjs(task.createdAt);
-    return recs.some((r) => dayjs(r.checkInTime).isSame(start) || dayjs(r.checkInTime).isAfter(start));
+    const end = addInterval(start, task.intervalValue, task.intervalUnit);
+    return recs.some((r) => {
+      const t = dayjs(r.checkInTime);
+      return (t.isAfter(start) || t.isSame(start)) && t.isBefore(end);
+    });
   }
   return task.completed;
 }

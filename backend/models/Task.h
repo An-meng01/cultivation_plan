@@ -14,6 +14,10 @@ struct Task {
     std::string topic;
     int priority = 1;
     std::string source = "custom";
+    std::string type = "once";
+    int intervalValue = 1;
+    std::string intervalUnit = "day";
+    std::string lastCheckIn;
     bool needReviewReminder = false;
     bool completed = false;
     std::string deadline;

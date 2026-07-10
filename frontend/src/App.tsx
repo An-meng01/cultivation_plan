@@ -14,6 +14,7 @@ import Dashboard from './pages/Dashboard';
 import Tasks from './pages/Tasks';
 import ClockIn from './pages/ClockIn';
 import Analysis from './pages/Analysis';
+import Login from './pages/Login';
 import TrackingNav from './components/TrackingNav';
 import { useTheme } from './theme/ThemeContext';
 import { useIsMobile } from './hooks/useIsMobile';

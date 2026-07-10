@@ -13,6 +13,10 @@ CREATE TABLE IF NOT EXISTS tasks (
     topic                 VARCHAR(100) DEFAULT '',
     priority              INTEGER DEFAULT 1 CHECK (priority BETWEEN 0 AND 3),
     source                VARCHAR(20) DEFAULT 'custom' CHECK (source IN ('custom', 'system')),
+    type                  VARCHAR(20) DEFAULT 'once' CHECK (type IN ('once', 'daily', 'periodic')),
+    interval_value        INTEGER DEFAULT 1,
+    interval_unit         VARCHAR(10) DEFAULT 'day' CHECK (interval_unit IN ('day', 'week', 'month')),
+    last_check_in         TIMESTAMP,
     need_review_reminder  BOOLEAN DEFAULT FALSE,
     completed             BOOLEAN DEFAULT FALSE,
     deadline              TIMESTAMP,
@@ -61,3 +65,9 @@ CREATE TABLE IF NOT EXISTS reminders (
 
 CREATE INDEX idx_reminders_user ON reminders(user_id);
 CREATE INDEX idx_reminders_due ON reminders(due_at);
+
+-- 幂等迁移：为已有数据库补充任务类型相关字段（初始化脚本只在空库时执行）
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'once' CHECK (type IN ('once', 'daily', 'periodic'));
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS interval_value INTEGER DEFAULT 1;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS interval_unit VARCHAR(10) DEFAULT 'day' CHECK (interval_unit IN ('day', 'week', 'month'));
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS last_check_in TIMESTAMP;

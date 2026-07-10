@@ -9,6 +9,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docs/database_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./docs/migrations.sql:/docker-entrypoint-initdb.d/02_migrations.sql
     ports:
       - "5432:5432"
     healthcheck:
@@ -21,7 +22,7 @@ services:
     build:
       context: ./backend
       args:
-        GITHUB_MIRROR: ${GITHUB_MIRROR:-https://github.com}
+        GITHUB_MIRROR: ${GITHUB_MIRROR:-https://gitclone.com/github.com}
     restart: unless-stopped
     ports:
       - "8080:8080"

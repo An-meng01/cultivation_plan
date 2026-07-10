@@ -51,6 +51,10 @@ void TaskController::getAll(
         t.topic = row["topic"].as<std::string>();
         t.priority = row["priority"].as<int>();
         t.source = row["source"].as<std::string>();
+        t.type = row["type"].as<std::string>();
+        t.intervalValue = row["interval_value"].as<int>();
+        t.intervalUnit = row["interval_unit"].as<std::string>();
+        t.lastCheckIn = row["last_check_in"].as<std::string>();
         t.needReviewReminder = row["need_review_reminder"].as<bool>();
         t.completed = row["completed"].as<bool>();
         t.deadline = row["deadline"].as<std::string>();
@@ -87,6 +91,10 @@ void TaskController::getOne(
     t.topic = row["topic"].as<std::string>();
     t.priority = row["priority"].as<int>();
     t.source = row["source"].as<std::string>();
+    t.type = row["type"].as<std::string>();
+    t.intervalValue = row["interval_value"].as<int>();
+    t.intervalUnit = row["interval_unit"].as<std::string>();
+    t.lastCheckIn = row["last_check_in"].as<std::string>();
     t.needReviewReminder = row["need_review_reminder"].as<bool>();
     t.completed = row["completed"].as<bool>();
     t.deadline = row["deadline"].as<std::string>();
@@ -116,10 +124,10 @@ void TaskController::create(
 
     auto result = db->execSqlSync(
         "INSERT INTO tasks (user_id, title, description, topic, priority, "
-        "source, need_review_reminder, deadline) "
-        "VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, '')::timestamp) RETURNING id",
+        "source, type, interval_value, interval_unit, need_review_reminder, deadline) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULLIF($11, '')::timestamp) RETURNING id",
         userId, t.title, t.description, t.topic, t.priority,
-        source, t.needReviewReminder,
+        source, t.type, t.intervalValue, t.intervalUnit, t.needReviewReminder,
         t.deadline);
 
     int newId = result[0]["id"].as<int>();
@@ -147,15 +155,22 @@ void TaskController::update(
     std::string topic = json->get("topic", "").asString();
     int priority = json->get("priority", -1).asInt();
     bool completed = json->get("completed", false).asBool();
+    std::string type = json->get("type", "").asString();
+    std::string intervalUnit = json->get("intervalUnit", "").asString();
+    int intervalValue = json->get("intervalValue", -1).asInt();
     int userId = auth_utils::getUserId(req);
 
     auto db = app().getDbClient("default");
     db->execSqlSync(
         "UPDATE tasks SET title = $3, description = $4, topic = $5,"
         " priority = CASE WHEN $6 = -1 THEN priority ELSE $6 END,"
-        " completed = $7"
+        " completed = $7,"
+        " type = CASE WHEN $8 = '' THEN type ELSE $8 END,"
+        " interval_value = CASE WHEN $9 = -1 THEN interval_value ELSE $9 END,"
+        " interval_unit = CASE WHEN $10 = '' THEN interval_unit ELSE $10 END"
         " WHERE id = $1 AND user_id = $2",
-        id, userId, title, description, topic, priority, completed);
+        id, userId, title, description, topic, priority, completed,
+        type, intervalValue, intervalUnit);
 
     Json::Value data;
     data["message"] = "ok";
