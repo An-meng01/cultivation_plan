@@ -43,6 +43,7 @@ export interface Task {
   priority: number;
   source: 'custom' | 'system';
   needReviewReminder: boolean;
+  remindBeforeDays?: number | null;
   completed: boolean;
   deadline: string | null;
   createdAt: string;
@@ -60,6 +61,7 @@ export interface TaskForm {
   priority?: number;
   source?: 'custom' | 'system';
   needReviewReminder?: boolean;
+  remindBeforeDays?: number | null;
   deadline?: string;
   type?: TaskType;
   intervalValue?: number;
@@ -163,6 +165,124 @@ export interface PriorityDistItem {
 export function fetchPriorityDistribution() {
   if (USE_MOCK) return mock.mockGetPriorityDistribution() as any;
   return api.get('/analysis/priorities') as Promise<{ code: number; data: Record<string, number> }>;
+}
+
+// 头像上传：提交 base64 图片，进入待审核(pending)状态，需管理员审核通过(approved)后对外展示
+export function uploadAvatar(avatar: string) {
+  if (USE_MOCK) return mock.mockUploadAvatar(avatar) as any;
+  return api.post('/auth/avatar', { avatar }) as Promise<{
+    code: number;
+    data: { avatarUrl: string; avatarStatus: string };
+  }>;
+}
+
+export interface UserProfile {
+  userId: number;
+  username: string;
+  avatarUrl: string;
+  avatarStatus: string;
+  email: string;
+  phone: string;
+}
+
+// 获取当前账号资料（含邮箱/电话，展示时由前端脱敏）
+export function fetchProfile() {
+  if (USE_MOCK) return mock.mockGetProfile() as any;
+  return api.get('/auth/me') as Promise<{ code: number; data: UserProfile }>;
+}
+
+// 更新邮箱/电话
+export function updateProfile(data: { email?: string; phone?: string }) {
+  if (USE_MOCK) return mock.mockUpdateProfile(data) as any;
+  return api.post('/auth/profile', data) as Promise<{ code: number; message: string }>;
+}
+
+export interface AdminUser {
+  id: number;
+  username: string;
+  role: string;
+  avatarStatus: string;
+  email: string;
+  phone: string;
+  taskCount: number;
+  createdAt: string;
+}
+
+// 注：以下 admin 接口均经 AdminFilter（RBAC，仅 role='admin' 可访问）保护；
+// USE_MOCK 时走前端内存模拟，否则走 axios 实例（自动附带 Bearer token）。
+
+export interface PendingAvatar {
+  id: number;
+  username: string;
+  avatarUrl: string;
+  avatarStatus: string;
+}
+
+export interface PendingTask {
+  id: number;
+  userId: number;
+  username: string;
+  title: string;
+  topic: string;
+  priority: number;
+  createdAt: string;
+}
+
+export interface ReviewNotice {
+  id: number;
+  kind: 'avatar' | 'task';
+  refId: number;
+  title: string;
+  action: 'approved' | 'rejected';
+  createdAt: string;
+}
+
+// 管理员：用户列表
+export function fetchAdminUsers() {
+  if (USE_MOCK) return mock.mockAdminUsers() as any;
+  return api.get('/admin/users') as Promise<{ code: number; data: AdminUser[] }>;
+}
+
+// 管理员：待审核头像列表
+export function fetchPendingAvatars() {
+  if (USE_MOCK) return mock.mockPendingAvatars() as any;
+  return api.get('/admin/avatars') as Promise<{ code: number; data: PendingAvatar[] }>;
+}
+
+// 管理员：审核头像（approved / rejected）
+export function reviewAvatar(userId: number, action: 'approved' | 'rejected') {
+  if (USE_MOCK) return mock.mockReviewAvatar(userId, action) as any;
+  return api.post('/admin/avatars/review', { userId, action }) as Promise<{ code: number; message: string }>;
+}
+
+// 管理员：待审核任务列表（普通用户当日新增超过 30 个后的部分）
+export function fetchPendingTasks() {
+  if (USE_MOCK) return mock.mockPendingTasks() as any;
+  return api.get('/admin/tasks/pending') as Promise<{ code: number; data: PendingTask[] }>;
+}
+
+// 管理员：审核任务（approved / rejected）
+export function reviewTask(taskId: number, action: 'approved' | 'rejected') {
+  if (USE_MOCK) return mock.mockReviewTask(taskId, action) as any;
+  return api.post('/admin/tasks/review', { taskId, action }) as Promise<{ code: number; message: string }>;
+}
+
+// 管理员：注销用户（可注销普通用户与自己，不能注销其他管理员）
+export function deleteUser(userId: number) {
+  if (USE_MOCK) return mock.mockDeleteUser(userId) as any;
+  return api.delete(`/admin/users/${userId}`) as Promise<{ code: number; data: { self: boolean }; message?: string }>;
+}
+
+// 当前用户：未读审核结果通知（登录后弹出）
+export function fetchNotices() {
+  if (USE_MOCK) return mock.mockGetNotices() as any;
+  return api.get('/auth/notices') as Promise<{ code: number; data: ReviewNotice[] }>;
+}
+
+// 当前用户：标记全部审核结果通知为已读
+export function markNoticesSeen() {
+  if (USE_MOCK) return mock.mockMarkNoticesSeen() as any;
+  return api.post('/auth/notices/seen') as Promise<{ code: number; message: string }>;
 }
 
 export default api;

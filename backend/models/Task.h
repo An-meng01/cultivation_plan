@@ -19,8 +19,10 @@ struct Task {
     std::string intervalUnit = "day";
     std::string lastCheckIn;
     bool needReviewReminder = false;
+    int remindBeforeDays = -1;
     bool completed = false;
     std::string deadline;
+    std::string reviewStatus = "none";
     std::string createdAt;
     std::string completedAt;
 

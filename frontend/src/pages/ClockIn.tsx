@@ -32,6 +32,10 @@ export default function ClockIn() {
       await checkIn(taskId);
       // 用炫酷特效替代朴素 toast；失败时仍用 message.error 提示
       setSuccessTitle(taskTitle);
+      // 打卡后刷新任务列表：一次性任务会被标记 completed、每日/周期任务的打卡记录已更新，
+      // 从而让刚打卡的任务从"待打卡"列表移除
+      const res = await fetchTasks();
+      setTasks(res.data);
     } catch {
       notifyError('打卡失败');
     }

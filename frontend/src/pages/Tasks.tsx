@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Row, Col, Button, Modal, Form, Input, Select, DatePicker, Switch, InputNumber, Space, message, Spin, Tooltip, theme,
+  Row, Col, Button, Modal, Form, Input, Select, DatePicker, Switch, InputNumber, Space, message, Spin, Tooltip, theme, Collapse,
 } from 'antd';
 import { PlusOutlined, ReloadOutlined, BulbOutlined, CloseOutlined } from '@ant-design/icons';
 import { Task, TaskForm, TaskType } from '../services/api';
@@ -18,6 +18,8 @@ export default function Tasks() {
   const [form] = Form.useForm();
   // 【React 概念：Form.useWatch】实时监听表单中 type 字段，用于条件渲染"周期/一次性"专属表单项
   const taskType = Form.useWatch('type', form) as TaskType | undefined;
+  // 监听"设置提醒"开关，开启时才显示"提前多少天提醒"输入框
+  const needRemind = Form.useWatch('needReviewReminder', form) as boolean | undefined;
 
   // 是否展开"系统推荐"面板 + 加载中的 loading 状态（只用于控制显示与按钮反馈）
   const [showSystem, setShowSystem] = useState(false);
@@ -42,7 +44,7 @@ export default function Tasks() {
   // 【React 概念：useState 存"筛选条件"】
   // 用一个对象把用户选中的筛选条件记下来（空字符串/undefined 表示"不限"）。
   // 注意这里用的是"普通对象状态"，和日历的 useState 是同一套路：改它就重渲染。
-  const [filters, setFilters] = useState<{ topic?: string; priority?: string; completed?: string }>({});
+  const [filters, setFilters] = useState<{ topic?: string; priority?: string; completed?: string; type?: string }>({});
 
   const openCreate = () => {
     setEditingTask(null);
@@ -59,6 +61,7 @@ export default function Tasks() {
       topic: task.topic,
       priority: task.priority,
       needReviewReminder: task.needReviewReminder,
+      remindBeforeDays: task.remindBeforeDays ?? null,
       type: task.type,
       intervalValue: task.intervalValue,
       intervalUnit: task.intervalUnit,
@@ -76,6 +79,8 @@ export default function Tasks() {
       const data: TaskForm = {
         ...values,
         deadline: values.deadline ? values.deadline.toISOString() : undefined,
+        needReviewReminder: !!values.needReviewReminder,
+        remindBeforeDays: values.needReviewReminder ? (values.remindBeforeDays ?? 1) : null,
       };
       if (editingTask) {
         await edit(editingTask.id, data);
@@ -102,6 +107,9 @@ export default function Tasks() {
         topic: t.topic,
         priority: t.priority,
         description: t.description,
+        type: t.type,
+        intervalValue: t.intervalValue,
+        intervalUnit: t.intervalUnit,
       });
       // 同样是"创建任务"，复用同一个庆祝特效
       setCreateSuccess({
@@ -128,6 +136,7 @@ export default function Tasks() {
     if (f.topic) p.topic = f.topic;
     if (f.priority) p.priority = f.priority;
     if (f.completed) p.completed = f.completed; // 后端要 'true' / 'false' 字符串
+    if (f.type) p.type = f.type;
     return p;
   };
 
@@ -142,6 +151,40 @@ export default function Tasks() {
   const resetFilters = () => {
     setFilters({});
     load();
+  };
+
+  // 【React 概念：从 state 派生展示结构（无需新 state）】
+  // 先按"未完成 / 已完成"分两大块，每块内再按"每天打卡 / 周期打卡 / 一次性"分三阶段，
+  // 每阶段内按优先级"紧急 > 高 > 中 > 低"从前往后排列。
+  // 技术：用 antd Collapse 实现"文件夹式"可折叠分组（双层嵌套，defaultActiveKey 控制默认展开）。
+  const STAGES: { key: TaskType; title: string }[] = [
+    { key: 'daily', title: '每天打卡' },
+    { key: 'periodic', title: '周期打卡' },
+    { key: 'once', title: '一次性' },
+  ];
+  const BUCKETS: { key: string; title: string; pred: (t: Task) => boolean }[] = [
+    { key: 'incomplete', title: '未完成', pred: (t) => !t.completed },
+    { key: 'complete', title: '已完成', pred: (t) => t.completed },
+  ];
+  const grouped = BUCKETS.map((bucket) => ({
+    ...bucket,
+    stages: STAGES.map((stage) => ({
+      ...stage,
+      items: tasks
+        .filter((t) => bucket.pred(t) && (t.type ?? 'once') === stage.key)
+        .sort((a, b) => b.priority - a.priority),
+    })).filter((s) => s.items.length > 0),
+  })).filter((b) => b.stages.length > 0);
+
+  // 模块配色：大模块(未完成/已完成)两种状态色；小模块(每天/周期/一次性)统一一种区分色
+  const BUCKET_STYLE: Record<string, { bg: string; border: string; color: string }> = {
+    incomplete: { bg: '#fff0f6', border: '#ffadd2', color: '#c41d7f' },
+    complete: { bg: '#f6ffed', border: '#b7eb8f', color: '#389e0d' },
+  };
+  const STAGE_STYLE: Record<string, { bg: string; border: string; color: string }> = {
+    daily: { bg: '#e6f4ff', border: '#91caff', color: '#0958d9' },
+    periodic: { bg: '#fff7e6', border: '#ffd591', color: '#d46b08' },
+    once: { bg: '#f9f0ff', border: '#d3adf7', color: '#722ed1' },
   };
 
   return (
@@ -181,6 +224,18 @@ export default function Tasks() {
             options={[
               { label: '未完成', value: 'false' },
               { label: '已完成', value: 'true' },
+            ]}
+          />
+          <Select
+            placeholder="按类型筛选"
+            allowClear
+            style={{ width: 140 }}
+            value={filters.type}
+            onChange={(v) => handleFilterChange({ type: v || undefined })}
+            options={[
+              { label: '每天打卡', value: 'daily' },
+              { label: '周期打卡', value: 'periodic' },
+              { label: '一次性', value: 'once' },
             ]}
           />
           <Button onClick={resetFilters}>重置筛选</Button>
@@ -224,16 +279,51 @@ export default function Tasks() {
 
       {loading ? (
         <Spin style={{ display: 'block', marginTop: 60 }} />
-      ) : tasks.length === 0 ? (
+      ) : grouped.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, color: '#999', marginTop: 20 }}>暂无任务，点击上方按钮创建</div>
       ) : (
-        <Row gutter={[12, 12]} style={{ marginTop: 20 }}>
-          {tasks.map((t) => (
-            <Col key={t.id} xs={24} sm={12} lg={8} xl={6}>
-              <TaskCard task={t} onComplete={done} onEdit={openEdit} onDelete={remove} />
-            </Col>
-          ))}
-        </Row>
+        <Collapse
+          defaultActiveKey={grouped.map((b) => b.key)}
+          items={grouped.map((bucket) => {
+            const bucketCount = bucket.stages.reduce((sum, s) => sum + s.items.length, 0);
+            const bStyle = BUCKET_STYLE[bucket.key];
+            return {
+              key: bucket.key,
+              style: { background: bStyle.bg, border: `1px solid ${bStyle.border}`, borderRadius: 8, marginBottom: 12 },
+              label: (
+                <span style={{ fontWeight: 700, fontSize: 16, color: bStyle.color }}>
+                  {bucket.title}（{bucketCount}）
+                </span>
+              ),
+              children: (
+                <Collapse
+                  defaultActiveKey={bucket.stages.map((s) => s.key)}
+                  items={bucket.stages.map((stage) => {
+                    const sStyle = STAGE_STYLE[stage.key];
+                    return {
+                      key: stage.key,
+                      style: { background: sStyle.bg, border: `1px solid ${sStyle.border}`, borderRadius: 6, marginBottom: 8 },
+                      label: (
+                        <span style={{ fontWeight: 600, fontSize: 14, color: sStyle.color }}>
+                          {stage.title}（{stage.items.length}）
+                        </span>
+                      ),
+                      children: (
+                        <Row gutter={[12, 12]}>
+                          {stage.items.map((t) => (
+                            <Col key={t.id} xs={24} sm={12} lg={8} xl={6}>
+                              <TaskCard task={t} onComplete={done} onEdit={openEdit} onDelete={remove} />
+                            </Col>
+                          ))}
+                        </Row>
+                      ),
+                    };
+                  })}
+                />
+              ),
+            };
+          })}
+        />
       )}
 
       <Modal
@@ -287,9 +377,14 @@ export default function Tasks() {
               <DatePicker showTime style={{ width: '100%' }} />
             </Form.Item>
           )}
-          <Form.Item name="needReviewReminder" label="复习提醒" valuePropName="checked">
+          <Form.Item name="needReviewReminder" label="设置提醒" valuePropName="checked">
             <Switch />
           </Form.Item>
+          {needRemind && (
+            <Form.Item name="remindBeforeDays" label="提前提醒（天）" initialValue={1} rules={[{ required: true, message: '请输入提前提醒天数' }]}>
+              <InputNumber min={1} max={365} style={{ width: 160 }} addonAfter="天" />
+            </Form.Item>
+          )}
         </Form>
       </Modal>
 

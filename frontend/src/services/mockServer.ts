@@ -73,9 +73,9 @@ const tasks: Task[] = [
 const systemTemplates: Omit<Task, 'id' | 'completed' | 'createdAt' | 'completedAt' | 'source'>[] = [
   { title: '每日英语单词背诵', description: '背诵 30 个新单词', topic: '英语', priority: 2, needReviewReminder: true, deadline: null, type: 'daily' },
   { title: '编程练习', description: '完成一道算法题', topic: '编程', priority: 2, needReviewReminder: false, deadline: null, type: 'daily' },
-  { title: '阅读技术文章', description: '阅读一篇技术文章', topic: '编程', priority: 1, needReviewReminder: false, deadline: null, type: 'once' },
-  { title: '数学题练习', description: '完成一节数学习题', topic: '数学', priority: 2, needReviewReminder: true, deadline: null, type: 'periodic', intervalValue: 2, intervalUnit: 'day' },
-  { title: '课程复习', description: '复习当天课程内容', topic: '数学', priority: 1, needReviewReminder: false, deadline: null, type: 'periodic', intervalValue: 1, intervalUnit: 'week' },
+  { title: '阅读技术文章', description: '阅读一篇技术文章', topic: '编程', priority: 1, needReviewReminder: false, deadline: null, type: 'periodic', intervalValue: 2, intervalUnit: 'week' },
+  { title: '数学题练习', description: '完成一节数学习题', topic: '数学', priority: 2, needReviewReminder: true, deadline: null, type: 'daily' },
+  { title: '课程复习', description: '复习当天课程内容', topic: '专业课', priority: 3, needReviewReminder: false, deadline: null, type: 'once' },
 ];
 
 // 最近几天的打卡记录
@@ -115,6 +115,7 @@ export async function mockCreateTask(data: any) {
     priority: data.priority ?? 1,
     source: 'custom',
     needReviewReminder: !!data.needReviewReminder,
+    remindBeforeDays: data.remindBeforeDays ?? null,
     completed: false,
     deadline: data.deadline ?? null,
     createdAt: new Date().toISOString(),
@@ -217,7 +218,7 @@ export async function mockGetAnalysisOverview() {
   const total = tasks.length;
   const completed = tasks.filter((t) => t.completed).length;
   const pending = total - completed;
-  const completionRate = total > 0 ? Math.round((completed / total) * 1000) / 10 : 0;
+  const completionRate = total > 0 ? Math.round((completed / total) * 10000) / 100 : 0;
   const topicDistribution: Record<string, number> = {};
   const topicCompleted: Record<string, number> = {};
   for (const t of tasks) {
@@ -226,7 +227,7 @@ export async function mockGetAnalysisOverview() {
   }
   const topicCompletionRate: Record<string, number> = {};
   for (const k of Object.keys(topicDistribution)) {
-    topicCompletionRate[k] = Math.round(((topicCompleted[k] || 0) / topicDistribution[k]) * 1000) / 10;
+      topicCompletionRate[k] = Math.round(((topicCompleted[k] || 0) / topicDistribution[k]) * 10000) / 100;
   }
   const topicDist: TopicDistItem[] = Object.keys(topicDistribution).map((k) => ({
     topic: k,
@@ -258,7 +259,7 @@ export async function mockGetDailyStats(start: string, end: string) {
     const seed = d.date();
     const added = Math.floor(seeded(seed) * 5);
     const completed = Math.floor(seeded(seed + 100) * (added + 1));
-    const rate = added + completed > 0 ? Math.round((completed / (added + completed)) * 1000) / 10 : 0;
+    const rate = added + completed > 0 ? Math.round((completed / (added + completed)) * 10000) / 100 : 0;
     list.push({ date: d.format('YYYY-MM-DD'), added, completed, rate });
   }
   return { code: 0, data: list };
@@ -269,4 +270,125 @@ export async function mockGetPriorityDistribution() {
   const dist: Record<string, number> = { '0': 0, '1': 0, '2': 0, '3': 0 };
   for (const t of tasks) dist[String(t.priority)] = (dist[String(t.priority)] || 0) + 1;
   return { code: 0, data: dist };
+}
+
+// 头像上传（Mock）：本地内存暂存，状态记为待审核，等待管理员审核
+export async function mockUploadAvatar(avatar: string) {
+  await delay();
+  return { code: 0, data: { avatarUrl: avatar, avatarStatus: 'pending' } };
+}
+
+// 账号资料（Mock）：内存暂存邮箱/电话
+let mockProfile: { userId: number; username: string; avatarUrl: string; avatarStatus: string; email: string; phone: string } = {
+  userId: 1, username: 'demo', avatarUrl: '', avatarStatus: 'none', email: '', phone: '',
+};
+
+export async function mockGetProfile() {
+  await delay();
+  return { code: 0, data: { ...mockProfile } };
+}
+
+export async function mockUpdateProfile(data: { email?: string; phone?: string }) {
+  await delay();
+  if (data.email !== undefined) mockProfile.email = data.email;
+  if (data.phone !== undefined) mockProfile.phone = data.phone;
+  return { code: 0, message: 'ok' };
+}
+
+// 管理员：用户列表（Mock）
+export async function mockAdminUsers() {
+  await delay();
+  const arr = [
+    { id: mockProfile.userId, username: mockProfile.username, role: 'admin', avatarStatus: mockProfile.avatarStatus, email: mockProfile.email || 'admin@demo.com', phone: mockProfile.phone || '13800000000', taskCount: 8, createdAt: '2026-07-01 10:00:00' },
+    { id: 2, username: 'xiaoming', role: 'user', avatarStatus: 'approved', email: 'ming@example.com', phone: '13912345678', taskCount: 5, createdAt: '2026-07-02 10:00:00' },
+    { id: 3, username: 'xiaohong', role: 'user', avatarStatus: 'pending', email: 'hong@example.com', phone: '13700112233', taskCount: 3, createdAt: '2026-07-03 10:00:00' },
+  ];
+  return { code: 0, data: arr };
+}
+
+// 管理员：待审核头像（Mock）
+export async function mockPendingAvatars() {
+  await delay();
+  const arr = [
+    { id: 3, username: 'xiaohong', avatarUrl: 'data:image/svg+xml;base64,', avatarStatus: 'pending' },
+  ];
+  return { code: 0, data: arr };
+}
+
+// 管理员：审核头像（Mock）
+export async function mockReviewAvatar(userId: number, action: 'approved' | 'rejected') {
+  await delay();
+  mockNotices.push({
+    id: ++mockNoticeId,
+    userId,
+    kind: 'avatar',
+    refId: userId,
+    title: '头像',
+    action,
+    seen: false,
+    createdAt: new Date().toISOString(),
+  });
+  return { code: 0, message: 'ok' };
+}
+
+// 管理员：待审核任务（Mock）
+const mockPendingTaskList = [
+  { id: 1001, userId: 2, username: 'xiaoming', title: '背诵四级单词表', topic: '英语', priority: 2, createdAt: '2026-07-10 11:00:00' },
+  { id: 1002, userId: 3, username: 'xiaohong', title: '高数课后习题', topic: '数学', priority: 1, createdAt: '2026-07-10 12:00:00' },
+];
+
+export async function mockPendingTasks() {
+  await delay();
+  return { code: 0, data: mockPendingTaskList };
+}
+
+export async function mockReviewTask(taskId: number, action: 'approved' | 'rejected') {
+  await delay();
+  const idx = mockPendingTaskList.findIndex((t) => t.id === taskId);
+  if (idx >= 0) {
+    const t = mockPendingTaskList[idx];
+    mockNotices.push({
+      id: ++mockNoticeId,
+      userId: t.userId,
+      kind: 'task',
+      refId: t.id,
+      title: t.title,
+      action,
+      seen: false,
+      createdAt: new Date().toISOString(),
+    });
+    mockPendingTaskList.splice(idx, 1);
+  }
+  return { code: 0, message: 'ok' };
+}
+
+export async function mockDeleteUser(_userId: number) {
+  await delay();
+  return { code: 0, data: { self: false }, message: 'ok' };
+}
+
+// 审核结果通知（Mock）
+interface MockNotice {
+  id: number;
+  userId: number;
+  kind: 'avatar' | 'task';
+  refId: number;
+  title: string;
+  action: 'approved' | 'rejected';
+  seen: boolean;
+  createdAt: string;
+}
+let mockNoticeId = 1;
+const mockNotices: MockNotice[] = [];
+
+export async function mockGetNotices() {
+  await delay();
+  const list = mockNotices.filter((n) => !n.seen).map(({ seen, ...rest }) => rest);
+  return { code: 0, data: list };
+}
+
+export async function mockMarkNoticesSeen() {
+  await delay();
+  for (const n of mockNotices) n.seen = true;
+  return { code: 0, message: 'ok' };
 }

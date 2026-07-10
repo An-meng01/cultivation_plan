@@ -6,6 +6,7 @@
 #include "controllers/AnalysisController.h"
 #include "controllers/ReminderController.h"
 #include "controllers/AuthController.h"
+#include "controllers/AdminController.h"
 
 int main() {
     auto& app = drogon::app();
@@ -16,6 +17,7 @@ int main() {
     app.registerController(std::make_shared<AnalysisController>());
     app.registerController(std::make_shared<ReminderController>());
     app.registerController(std::make_shared<AuthController>());
+    app.registerController(std::make_shared<AdminController>());
 
     app.registerBeginningAdvice([&app]() {
         auto db = app.getDbClient("default");
@@ -27,9 +29,11 @@ int main() {
     });
 
     app.registerBeginningAdvice([]() {
+        // 技术：在应用启动钩子里启动后台提醒服务（独立于 HTTP 请求的后台线程），
+        // 每 120 秒轮询一次到期任务并按设备分渠道(邮件/短信)生成提醒。
         static services::ReminderService reminder;
-        reminder.setNotifyCallback([](int taskId, const std::string& title) {
-            LOG_INFO << "⏰ 提醒: 任务 #" << taskId << " \"" << title
+        reminder.setNotifyCallback([](int taskId, const std::string& title, const std::string& channel) {
+            LOG_INFO << "⏰ 提醒(" << channel << "): 任务 #" << taskId << " \"" << title
                      << "\" 即将到期，请及时处理！";
         });
         reminder.start(120);

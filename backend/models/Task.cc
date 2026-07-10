@@ -15,7 +15,9 @@ Json::Value Task::toJson() const {
     j["intervalUnit"] = intervalUnit;
     j["lastCheckIn"] = lastCheckIn.empty() ? Json::Value() : lastCheckIn;
     j["needReviewReminder"] = needReviewReminder;
+    j["remindBeforeDays"] = remindBeforeDays;
     j["completed"] = completed;
+    j["reviewStatus"] = reviewStatus;
     j["deadline"] = deadline.empty() ? Json::Value() : deadline;
     j["createdAt"] = createdAt;
     j["completedAt"] = completedAt.empty() ? Json::Value() : completedAt;
@@ -38,6 +40,7 @@ Task Task::fromJson(const Json::Value& j) {
     if (j.isMember("lastCheckIn") && !j["lastCheckIn"].isNull())
         t.lastCheckIn = j["lastCheckIn"].asString();
     t.needReviewReminder = j.get("needReviewReminder", false).asBool();
+    t.remindBeforeDays = j.get("remindBeforeDays", -1).asInt();
     if (j.isMember("deadline") && !j["deadline"].isNull())
         t.deadline = j["deadline"].asString();
     return t;

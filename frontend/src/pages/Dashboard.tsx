@@ -5,7 +5,6 @@ import {
   CheckCircleOutlined,
   UnorderedListOutlined,
   ClockCircleOutlined,
-  PercentageOutlined,
 } from '@ant-design/icons';
 import { fetchAnalysisOverview, fetchDailyStats, AnalysisOverview, DailyStat } from '../services/api';
 import { notifyError } from '../utils/response';
@@ -64,7 +63,7 @@ export default function Dashboard() {
           <Card><Statistic title="待完成" value={overview.pending} prefix={<ClockCircleOutlined />} valueStyle={{ color: '#faad14' }} /></Card>
         </Col>
         <Col xs={12} sm={6}>
-          <Card><Statistic title="完成率" value={overview.completionRate} suffix="%" prefix={<PercentageOutlined />} /></Card>
+          <Card><Statistic title="完成率" value={overview.completionRate} suffix="%" precision={2} /></Card>
         </Col>
       </Row>
 

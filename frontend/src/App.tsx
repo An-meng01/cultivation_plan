@@ -9,13 +9,21 @@ import {
   CheckCircleOutlined,
   BarChartOutlined,
   MenuOutlined,
+  FieldTimeOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import Dashboard from './pages/Dashboard';
 import Tasks from './pages/Tasks';
 import ClockIn from './pages/ClockIn';
 import Analysis from './pages/Analysis';
+import Pomodoro from './pages/Pomodoro';
+import Account from './pages/Account';
+import Settings from './pages/Settings';
+import Achievements from './pages/Achievements';
+import Admin from './pages/Admin';
 import Login from './pages/Login';
 import TrackingNav from './components/TrackingNav';
+import UserProfile from './components/UserProfile';
 import { useTheme } from './theme/ThemeContext';
 import { useIsMobile } from './hooks/useIsMobile';
 
@@ -25,7 +33,18 @@ const menuItems = [
   { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
   { key: '/tasks', icon: <UnorderedListOutlined />, label: '任务管理' },
   { key: '/clock-in', icon: <CheckCircleOutlined />, label: '打卡签到' },
+  { key: '/pomodoro', icon: <FieldTimeOutlined />, label: '番茄钟' },
   { key: '/analysis', icon: <BarChartOutlined />, label: '任务分析' },
+  {
+    key: 'me',
+    icon: <UserOutlined />,
+    label: '我的',
+    children: [
+      { key: '/account', label: '账号' },
+      { key: '/settings', label: '设置' },
+      { key: '/achievements', label: '成就' },
+    ],
+  },
 ];
 
 function AppLayout() {
@@ -39,6 +58,9 @@ function AppLayout() {
     localStorage.removeItem('token');
     localStorage.removeItem('username');
     localStorage.removeItem('userId');
+    localStorage.removeItem('role');
+    localStorage.removeItem('avatar');
+    localStorage.removeItem('avatarStatus');
     navigate('/login', { replace: true });
   };
 
@@ -52,7 +74,7 @@ function AppLayout() {
   // 抽屉菜单的开关状态（只在手机模式下用到）
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // 桌面端侧边栏默认收缩（只显示图标），鼠标移上去时展开
+  // 桌面端侧边栏默认收缩（只显示图标），鼠标移上去时缓慢拉伸展开
   const [collapsed, setCollapsed] = useState(true);
 
   // 点菜单项：跳转页面；如果是手机，顺手把抽屉关掉
@@ -67,12 +89,18 @@ function AppLayout() {
       {!isMobile && (
         <Sider
           width={collapsed ? 72 : 220}
-          style={{ background: siderBg, transition: 'width .9s cubic-bezier(0.22, 1, 0.36, 1), background .3s', overflow: 'hidden', boxShadow: '2px 0 8px rgba(214, 51, 132, 0.12)' }}
+          style={{
+            background: siderBg,
+            transition: 'width 1s ease-in-out, max-width 1s ease-in-out, min-width 1s ease-in-out, background .3s',
+            overflow: 'hidden',
+            boxShadow: '2px 0 8px rgba(214, 51, 132, 0.12)',
+          }}
           onMouseEnter={() => setCollapsed(false)}
           onMouseLeave={() => setCollapsed(true)}
         >
-          <div style={{ height: 48, margin: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: token.colorText, fontWeight: 'bold', fontSize: 18 }}>
-            {collapsed ? <MenuOutlined /> : '导航'}
+          <div style={{ height: 48, margin: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 10, color: token.colorText, fontWeight: 'bold', fontSize: 18, overflow: 'hidden', whiteSpace: 'nowrap' }}>
+            <MenuOutlined />
+            <span>菜单</span>
           </div>
           <div style={{ padding: '0 12px' }}>
             <TrackingNav
@@ -106,11 +134,9 @@ function AppLayout() {
             <span style={{ fontSize: 18, fontWeight: 600 }}>学习养成计划</span>
           </div>
 
-          {/* 右边：用户名 + 退出登录 + 暗色主题开关 */}
+          {/* 右边：头像+用户名 + 退出登录 + 暗色主题开关 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {localStorage.getItem('username') && (
-              <span style={{ color: token.colorText }}>{localStorage.getItem('username')}</span>
-            )}
+            {localStorage.getItem('username') && <UserProfile />}
             <Button onClick={handleLogout}>退出登录</Button>
             <Switch
               checked={isDark}
@@ -148,7 +174,11 @@ function AppLayout() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/clock-in" element={<ClockIn />} />
+            <Route path="/pomodoro" element={<Pomodoro />} />
             <Route path="/analysis" element={<Analysis />} />
+            <Route path="/account" element={<Account />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/achievements" element={<Achievements />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Content>
@@ -168,6 +198,17 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
+  // 管理员走独立前端
+  if (localStorage.getItem('role') === 'admin') {
+    return (
+      <Routes>
+        <Route path="/admin" element={<Admin />} />
+        <Route path="*" element={<Navigate to="/admin" replace />} />
+        <Route path="/login" element={<Navigate to="/admin" replace />} />
       </Routes>
     );
   }

@@ -1,0 +1,157 @@
+/* 登录/注册 丝滑覆盖切换样式 */
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.auth-title {
+  color: #fff;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  margin-bottom: 22px;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+}
+
+/* 白底矩形容器：整体大小保持 400 宽 */
+.auth-card {
+  position: relative;
+  width: 400px;
+  height: 300px;
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+
+/* 两侧白底表单面板，固定不动，仿佛与背景合一 */
+.auth-panel {
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  padding: 14px 18px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.auth-panel--left {
+  left: 0;
+}
+
+.auth-panel--right {
+  right: 0;
+  justify-content: flex-start;
+  padding-top: 22px;
+}
+
+.auth-panel-heading {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 600;
+  color: #2c2c3a;
+  margin-bottom: 14px;
+}
+
+.auth-panel .ant-form-item {
+  margin-bottom: 12px;
+}
+
+/* 荧光绿蒙版：占白矩形一半，靠边侧圆角小，居中侧圆角大 */
+.auth-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(135deg, #6EFF9E 0%, #2BE87A 100%);
+  z-index: 5;
+  overflow: hidden;
+  transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 登录视图：蒙版居右，左侧（居中侧）大圆角，右侧（靠边侧）小圆角 */
+.auth-overlay--login {
+  transform: translateX(100%);
+  border-radius: 56px 0 0 56px;
+}
+
+/* 注册视图：蒙版居左，右侧（居中侧）大圆角，左侧（靠边侧）小圆角 */
+.auth-overlay--register {
+  transform: translateX(0);
+  border-radius: 0 56px 56px 0;
+}
+
+/* 蒙版内两层文字：丝滑字体过渡（交叉淡入淡出） */
+.auth-overlay-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 24px;
+  box-sizing: border-box;
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.5s ease, transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.auth-overlay-face--active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.auth-overlay-big {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  background: linear-gradient(135deg, #C084FC 0%, #8B2FE8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 20px;
+}
+
+.auth-overlay-small {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #5e1db0;
+  margin-bottom: 26px;
+  max-width: 150px;
+}
+
+/* 蒙版上的切换按钮：极光紫 */
+.auth-overlay-btn {
+  border: none;
+  border-radius: 24px;
+  padding: 9px 34px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(135deg, #C084FC 0%, #8B2FE8 100%);
+  box-shadow: 0 6px 18px rgba(139, 47, 232, 0.35);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-overlay-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(139, 47, 232, 0.45);
+}
+
+.auth-overlay-btn:active {
+  transform: translateY(0);
+}

@@ -95,6 +95,9 @@ export default function TaskCard({ task, onComplete, onEdit, onDelete }: Props) 
             </Tag>
           )}
           {task.source === 'system' && <Tag color="purple">推荐</Tag>}
+          {task.needReviewReminder && task.remindBeforeDays != null && task.remindBeforeDays >= 0 && (
+            <Tag color="gold">提前 {task.remindBeforeDays} 天提醒</Tag>
+          )}
         </Space>
       </Space>
     </Card>

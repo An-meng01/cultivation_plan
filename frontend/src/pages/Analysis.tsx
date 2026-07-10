@@ -41,7 +41,7 @@ export default function Analysis() {
   const topicColumns = [
     { title: '主题', dataIndex: 'topic', key: 'topic' },
     { title: '任务数', dataIndex: 'count', key: 'count' },
-    { title: '完成率', dataIndex: 'rate', key: 'rate', render: (v: number) => `${v.toFixed(1)}%` },
+    { title: '完成率', dataIndex: 'rate', key: 'rate', render: (v: number) => `${v.toFixed(2)}%` },
   ];
 
   const topicTableData = overview.topicDist.map((dist) => {
@@ -57,7 +57,7 @@ export default function Analysis() {
       title: '完成率',
       dataIndex: 'rate',
       key: 'rate',
-      render: (v: number) => `${v.toFixed(1)}%`,
+      render: (v: number) => `${v.toFixed(2)}%`,
       sorter: (a: DailyStat, b: DailyStat) => a.rate - b.rate,
     },
   ];
@@ -75,7 +75,7 @@ export default function Analysis() {
           <Card><Statistic title="待完成" value={overview.pending} valueStyle={{ color: '#faad14' }} /></Card>
         </Col>
         <Col xs={12} sm={6}>
-          <Card><Statistic title="完成率" value={overview.completionRate} suffix="%" precision={1} /></Card>
+          <Card><Statistic title="完成率" value={overview.completionRate} suffix="%" precision={2} /></Card>
         </Col>
       </Row>
 

@@ -39,7 +39,7 @@ Json::Value StatsService::getOverview(int userId) {
         Json::Value itemRate;
         itemRate["topic"] = topic;
         itemRate["completed"] = d;
-        itemRate["rate"] = t > 0 ? std::round(d * 1000.0 / t) / 10.0 : 0.0;
+        itemRate["rate"] = t > 0 ? std::round(d * 10000.0 / t) / 100.0 : 0.0;
         topicRate.append(itemRate);
     }
 
@@ -105,7 +105,7 @@ Json::Value StatsService::getDailyStats(const std::string& start,
         item["added"] = added;
         item["completed"] = doneCnt;
         item["rate"] = cumulativeTotal > 0
-            ? std::round(doneCnt * 1000.0 / cumulativeTotal) / 10.0
+            ? std::round(doneCnt * 10000.0 / cumulativeTotal) / 100.0
             : 0.0;
         arr.append(item);
     }

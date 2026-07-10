@@ -2,9 +2,13 @@ CREATE TABLE IF NOT EXISTS users (
     id            SERIAL PRIMARY KEY,
     username      VARCHAR(100) UNIQUE NOT NULL,
     password      VARCHAR(255) NOT NULL,
+    role          VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+    last_device   VARCHAR(10) DEFAULT 'pc' CHECK (last_device IN ('pc', 'mobile')),
     created_at    TIMESTAMP DEFAULT NOW(),
     avatar_url    TEXT,
-    avatar_status VARCHAR(20) DEFAULT 'none' CHECK (avatar_status IN ('none', 'pending', 'approved', 'rejected'))
+    avatar_status VARCHAR(20) DEFAULT 'none' CHECK (avatar_status IN ('none', 'pending', 'approved', 'rejected')),
+    email         VARCHAR(255),
+    phone         VARCHAR(50)
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
@@ -20,8 +24,11 @@ CREATE TABLE IF NOT EXISTS tasks (
     interval_unit         VARCHAR(10) DEFAULT 'day' CHECK (interval_unit IN ('day', 'week', 'month')),
     last_check_in         TIMESTAMP,
     need_review_reminder  BOOLEAN DEFAULT FALSE,
+    remind_before_days    INTEGER,
+    last_reminder_sent    TIMESTAMP,
     completed             BOOLEAN DEFAULT FALSE,
     deadline              TIMESTAMP,
+    review_status         VARCHAR(20) DEFAULT 'none' CHECK (review_status IN ('none', 'pending', 'approved', 'rejected')),
     created_at            TIMESTAMP DEFAULT NOW(),
     completed_at          TIMESTAMP
 );
@@ -67,6 +74,34 @@ CREATE TABLE IF NOT EXISTS reminders (
 
 CREATE INDEX idx_reminders_user ON reminders(user_id);
 CREATE INDEX idx_reminders_due ON reminders(due_at);
+
+-- 提醒发送记录：PC 端走邮件(email)，移动端走短信(sms)
+CREATE TABLE IF NOT EXISTS notifications (
+    id         SERIAL PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    task_id    INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+    channel    VARCHAR(10) NOT NULL CHECK (channel IN ('email', 'sms')),
+    recipient  VARCHAR(255) NOT NULL,
+    content    TEXT,
+    status     VARCHAR(20) DEFAULT 'sent' CHECK (status IN ('pending', 'sent', 'failed')),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_notifications_user ON notifications(user_id);
+
+-- 审核结果通知：管理员审核（头像/任务）后，被审核的普通用户下次登录时弹出结果
+CREATE TABLE IF NOT EXISTS review_notices (
+    id         SERIAL PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind       VARCHAR(20) NOT NULL CHECK (kind IN ('avatar', 'task')),
+    ref_id     INTEGER,
+    title      VARCHAR(255) NOT NULL DEFAULT '',
+    action     VARCHAR(20) NOT NULL CHECK (action IN ('approved', 'rejected')),
+    seen       BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX idx_review_notices_user ON review_notices(user_id);
+CREATE INDEX idx_review_notices_unseen ON review_notices(user_id, seen);
 
 -- 幂等迁移：为已有数据库补充任务类型相关字段（初始化脚本只在空库时执行）
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'once' CHECK (type IN ('once', 'daily', 'periodic'));

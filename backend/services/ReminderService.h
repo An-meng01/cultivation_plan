@@ -12,7 +12,7 @@ namespace services {
 
 class ReminderService {
 public:
-    using NotifyFn = std::function<void(int taskId, const std::string& title)>;
+    using NotifyFn = std::function<void(int taskId, const std::string& title, const std::string& channel)>;
 
     ReminderService();
     ~ReminderService();
@@ -23,7 +23,7 @@ public:
 
 private:
     void loop(int intervalSeconds);
-    void checkDueTasks(int pollCount);
+    void checkDueTasks();
 
     std::thread worker_;
     std::atomic<bool> running_{false};

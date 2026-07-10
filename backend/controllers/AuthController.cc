@@ -4,6 +4,8 @@
 #include <random>
 #include <sstream>
 #include <iomanip>
+#include <algorithm>
+#include <cctype>
 
 using namespace drogon;
 
@@ -53,7 +55,7 @@ void AuthController::login(const HttpRequestPtr& req,
 
     auto db = app().getDbClient("default");
     auto result = db->execSqlSync(
-        "SELECT id FROM users WHERE username = $1 AND password = $2",
+        "SELECT id, role FROM users WHERE username = $1 AND password = $2",
         username, password);
 
     if (result.empty()) {
@@ -63,6 +65,23 @@ void AuthController::login(const HttpRequestPtr& req,
     }
 
     int userId = result[0]["id"].as<int>();
+    std::string role = result[0]["role"].as<std::string>();
+
+    // 根据 User-Agent 判定登录设备：移动端走短信提醒，PC 端走邮件提醒
+    // 技术：drogon HttpRequest::getHeader 读取请求头；用标准库 <algorithm>/<cctype>
+    //       做大小写无关的字符串匹配（tolower + find）。结果写入 users.last_device。
+    std::string ua = req->getHeader("user-agent");
+    std::string device = "pc";
+    std::string uaLower = ua;
+    std::transform(uaLower.begin(), uaLower.end(), uaLower.begin(), ::tolower);
+    if (uaLower.find("mobile") != std::string::npos ||
+        uaLower.find("android") != std::string::npos ||
+        uaLower.find("iphone") != std::string::npos ||
+        uaLower.find("ipad") != std::string::npos) {
+        device = "mobile";
+    }
+    db->execSqlSync("UPDATE users SET last_device = $1 WHERE id = $2", device, userId);
+
     std::string token = randomToken();
 
     db->execSqlSync(
@@ -80,6 +99,7 @@ void AuthController::login(const HttpRequestPtr& req,
     data["token"] = token;
     data["userId"] = userId;
     data["username"] = username;
+    data["role"] = role;
     data["avatarUrl"] = avatarUrl;
     data["avatarStatus"] = avatarStatus;
 
@@ -98,6 +118,12 @@ void AuthController::reg(const HttpRequestPtr& req,
 
     std::string username = (*json)["username"].asString();
     std::string password = (*json)["password"].asString();
+
+    std::string role = "user";
+    if (json->isMember("role")) {
+        std::string r = (*json)["role"].asString();
+        if (r == "admin") role = "admin";
+    }
 
     if (username.length() < 2 || username.length() > 10) {
         auto resp = HttpResponse::newHttpJsonResponse(fail(400, "用户名需为2-10个字符"));
@@ -122,8 +148,8 @@ void AuthController::reg(const HttpRequestPtr& req,
     }
 
     auto result = db->execSqlSync(
-        "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id",
-        username, password);
+        "INSERT INTO users (username, password, role) VALUES ($1, $2, $3) RETURNING id",
+        username, password, role);
 
     int userId = result[0]["id"].as<int>();
 
@@ -150,7 +176,7 @@ void AuthController::me(const HttpRequestPtr& req,
 
     auto db = app().getDbClient("default");
     auto result = db->execSqlSync(
-        "SELECT username, avatar_url, avatar_status FROM users WHERE id = $1",
+        "SELECT username, avatar_url, avatar_status, email, phone, role, last_device FROM users WHERE id = $1",
         userId);
 
     std::string avatarUrl = (result.empty() || result[0]["avatar_url"].isNull())
@@ -163,6 +189,10 @@ void AuthController::me(const HttpRequestPtr& req,
     data["username"] = result.empty() ? "unknown" : result[0]["username"].as<std::string>();
     data["avatarUrl"] = avatarUrl;
     data["avatarStatus"] = avatarStatus;
+    data["email"] = (result.empty() || result[0]["email"].isNull()) ? "" : result[0]["email"].as<std::string>();
+    data["phone"] = (result.empty() || result[0]["phone"].isNull()) ? "" : result[0]["phone"].as<std::string>();
+    data["role"] = result.empty() ? "user" : result[0]["role"].as<std::string>();
+    data["lastDevice"] = result.empty() ? "pc" : result[0]["last_device"].as<std::string>();
 
     auto resp = HttpResponse::newHttpJsonResponse(okData(data));
     callback(resp);
@@ -204,5 +234,84 @@ void AuthController::uploadAvatar(const HttpRequestPtr& req,
     data["avatarStatus"] = "pending";
 
     auto resp = HttpResponse::newHttpJsonResponse(okData(data));
+    callback(resp);
+}
+
+void AuthController::updateProfile(const HttpRequestPtr& req,
+                                   std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+    auto attrs = req->attributes();
+    int userId = 1;
+    if (attrs->find("user_id")) {
+        try {
+            userId = std::stoi(attrs->get<std::string>("user_id"));
+        } catch (...) {}
+    }
+
+    auto json = req->getJsonObject();
+    if (!json) {
+        auto resp = HttpResponse::newHttpJsonResponse(fail(400, "invalid json"));
+        callback(resp);
+        return;
+    }
+
+    std::string email = json->get("email", "").asString();
+    std::string phone = json->get("phone", "").asString();
+
+    auto db = app().getDbClient("default");
+    db->execSqlSync(
+        "UPDATE users SET email = NULLIF($1, ''), phone = NULLIF($2, '') WHERE id = $3",
+        email, phone, userId);
+
+    auto resp = HttpResponse::newHttpJsonResponse(ok());
+    callback(resp);
+}
+
+void AuthController::notices(const HttpRequestPtr& req,
+                             std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+    auto attrs = req->attributes();
+    int userId = 1;
+    if (attrs->find("user_id")) {
+        try {
+            userId = std::stoi(attrs->get<std::string>("user_id"));
+        } catch (...) {}
+    }
+
+    auto db = app().getDbClient("default");
+    // 返回当前用户未读的审核结果通知（头像/任务审核）
+    auto result = db->execSqlSync(
+        "SELECT id, kind, ref_id, title, action, created_at FROM review_notices "
+        "WHERE user_id = $1 AND seen = FALSE ORDER BY created_at ASC",
+        userId);
+    Json::Value arr(Json::arrayValue);
+    for (const auto& r : result) {
+        Json::Value item;
+        item["id"] = r["id"].as<int>();
+        item["kind"] = r["kind"].as<std::string>();
+        item["refId"] = r["ref_id"].isNull() ? 0 : r["ref_id"].as<int>();
+        item["title"] = r["title"].as<std::string>();
+        item["action"] = r["action"].as<std::string>();
+        item["createdAt"] = r["created_at"].as<std::string>();
+        arr.append(item);
+    }
+    auto resp = HttpResponse::newHttpJsonResponse(okData(arr));
+    callback(resp);
+}
+
+void AuthController::markNoticesSeen(const HttpRequestPtr& req,
+                                     std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+    auto attrs = req->attributes();
+    int userId = 1;
+    if (attrs->find("user_id")) {
+        try {
+            userId = std::stoi(attrs->get<std::string>("user_id"));
+        } catch (...) {}
+    }
+
+    auto db = app().getDbClient("default");
+    db->execSqlSync(
+        "UPDATE review_notices SET seen = TRUE WHERE user_id = $1 AND seen = FALSE",
+        userId);
+
+    auto resp = HttpResponse::newHttpJsonResponse(ok());
     callback(resp);
 }
