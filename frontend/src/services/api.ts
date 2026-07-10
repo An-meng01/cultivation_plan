@@ -22,7 +22,9 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res.data,
   (err) => {
-    if (err.response?.status === 401) {
+    // 仅在已登录（存在 token）时，401 才视为会话失效跳转登录页；
+    // 登录页本身的 401（账号密码错误）不要跳转，否则会刷新页面、吞掉错误提示。
+    if (err.response?.status === 401 && localStorage.getItem('token')) {
       localStorage.removeItem('token');
       localStorage.removeItem('username');
       localStorage.removeItem('userId');
@@ -46,6 +48,7 @@ export interface Task {
   remindBeforeDays?: number | null;
   completed: boolean;
   deadline: string | null;
+  reviewStatus?: string;
   createdAt: string;
   completedAt: string | null;
   type: TaskType;
@@ -197,6 +200,12 @@ export function updateProfile(data: { email?: string; phone?: string }) {
   return api.post('/auth/profile', data) as Promise<{ code: number; message: string }>;
 }
 
+// 修改自己的密码（需校验原密码）
+export function changePassword(data: { oldPassword: string; newPassword: string }) {
+  if (USE_MOCK) return mock.mockChangePassword(data) as any;
+  return api.post('/auth/password', data) as Promise<{ code: number; message: string }>;
+}
+
 export interface AdminUser {
   id: number;
   username: string;
@@ -271,6 +280,18 @@ export function reviewTask(taskId: number, action: 'approved' | 'rejected') {
 export function deleteUser(userId: number) {
   if (USE_MOCK) return mock.mockDeleteUser(userId) as any;
   return api.delete(`/admin/users/${userId}`) as Promise<{ code: number; data: { self: boolean }; message?: string }>;
+}
+
+// 管理员：将普通用户密码重置为固定初始口令 "1111"（不能重置管理员账号）
+export function resetUserPassword(userId: number) {
+  if (USE_MOCK) return mock.mockResetPassword(userId) as any;
+  return api.post(`/admin/users/${userId}/reset-password`) as Promise<{ code: number; message: string }>;
+}
+
+// 当前用户：当日已新增任务数（用于判断再次创建是否需管理员审核）
+export function fetchTodayTaskCount() {
+  if (USE_MOCK) return mock.mockTodayTaskCount() as any;
+  return api.get('/tasks/today-count') as Promise<{ code: number; data: { count: number } }>;
 }
 
 // 当前用户：未读审核结果通知（登录后弹出）

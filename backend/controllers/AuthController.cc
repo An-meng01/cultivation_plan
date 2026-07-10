@@ -59,7 +59,7 @@ void AuthController::login(const HttpRequestPtr& req,
         username, password);
 
     if (result.empty()) {
-        auto resp = HttpResponse::newHttpJsonResponse(fail(401, "invalid username or password"));
+        auto resp = HttpResponse::newHttpJsonResponse(fail(401, "用户名或密码错误"));
         callback(resp);
         return;
     }
@@ -224,9 +224,10 @@ void AuthController::uploadAvatar(const HttpRequestPtr& req,
     }
 
     auto db = app().getDbClient("default");
-    // 上传后进入"待审核"状态，需管理员审核通过(approved)后才对外展示
+    // 上传后进入"待审核"状态：暂存到 avatar_pending_url，保留原头像不变；
+    // 审核通过才替换对外头像，拒绝则回退到原头像（见 reviewAvatar）。
     db->execSqlSync(
-        "UPDATE users SET avatar_url = $1, avatar_status = 'pending' WHERE id = $2",
+        "UPDATE users SET avatar_pending_url = $1, avatar_status = 'pending' WHERE id = $2",
         avatar, userId);
 
     Json::Value data;
@@ -261,6 +262,51 @@ void AuthController::updateProfile(const HttpRequestPtr& req,
     db->execSqlSync(
         "UPDATE users SET email = NULLIF($1, ''), phone = NULLIF($2, '') WHERE id = $3",
         email, phone, userId);
+
+    auto resp = HttpResponse::newHttpJsonResponse(ok());
+    callback(resp);
+}
+
+void AuthController::changePassword(const HttpRequestPtr& req,
+                                    std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+    auto attrs = req->attributes();
+    int userId = 1;
+    if (attrs->find("user_id")) {
+        try {
+            userId = std::stoi(attrs->get<std::string>("user_id"));
+        } catch (...) {}
+    }
+
+    auto json = req->getJsonObject();
+    if (!json) {
+        auto resp = HttpResponse::newHttpJsonResponse(fail(400, "invalid json"));
+        callback(resp);
+        return;
+    }
+
+    std::string oldPassword = json->get("oldPassword", "").asString();
+    std::string newPassword = json->get("newPassword", "").asString();
+
+    if (newPassword.length() < 4) {
+        auto resp = HttpResponse::newHttpJsonResponse(fail(400, "新密码至少4个字符"));
+        callback(resp);
+        return;
+    }
+
+    auto db = app().getDbClient("default");
+    // 校验原密码，防止越权修改
+    auto check = db->execSqlSync(
+        "SELECT id FROM users WHERE id = $1 AND password = $2",
+        userId, oldPassword);
+    if (check.empty()) {
+        auto resp = HttpResponse::newHttpJsonResponse(fail(400, "原密码错误"));
+        callback(resp);
+        return;
+    }
+
+    db->execSqlSync(
+        "UPDATE users SET password = $1 WHERE id = $2",
+        newPassword, userId);
 
     auto resp = HttpResponse::newHttpJsonResponse(ok());
     callback(resp);

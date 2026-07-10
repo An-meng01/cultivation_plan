@@ -2,11 +2,14 @@
 // 技术：基于角色的前端条件渲染（localStorage.role === 'admin' 时才挂载本组件），
 // 数据通过 antd Table/Tag/Statistic 展示，审核操作调用 admin 受保护接口(AdminFilter)。
 import { useEffect, useState } from 'react';
-import { Card, Table, Tag, Button, Avatar, Space, Statistic, Row, Col, message, theme, Modal, Popconfirm, Tooltip } from 'antd';
-import { CheckOutlined, CloseOutlined, EyeOutlined } from '@ant-design/icons';
+import {
+  Card, Table, Tag, Button, Avatar, Space, Statistic, Row, Col, message, theme,
+  Modal, Popconfirm, Tooltip, Form, Input,
+} from 'antd';
+import { CheckOutlined, CloseOutlined, EyeOutlined, LockOutlined } from '@ant-design/icons';
 import {
   fetchAdminUsers, fetchPendingAvatars, fetchPendingTasks,
-  reviewAvatar, reviewTask, deleteUser,
+  reviewAvatar, reviewTask, deleteUser, resetUserPassword, changePassword,
   AdminUser, PendingAvatar, PendingTask,
 } from '../services/api';
 import { notifyError } from '../utils/response';
@@ -26,21 +29,31 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
+  // 横向导航栏：当前选中项与鼠标悬停项（滑动指示条追踪）
+  const [activeTab, setActiveTab] = useState('users');
+  const [hoverTab, setHoverTab] = useState<string | null>(null);
+
+  // 我的账号：修改自身密码
+  const [pwModalOpen, setPwModalOpen] = useState(false);
+  const [pwForm] = Form.useForm();
 
   const currentAdminId = Number(localStorage.getItem('userId') || 0);
 
   const load = async () => {
     setLoading(true);
-    try {
-      const [u, a, t] = await Promise.all([fetchAdminUsers(), fetchPendingAvatars(), fetchPendingTasks()]);
-      setUsers(u.data);
-      setAvatars(a.data);
-      setPendingTasks(t.data);
-    } catch {
-      notifyError('加载管理数据失败');
-    } finally {
-      setLoading(false);
-    }
+    // 各区块独立加载，避免单个接口失败（如数据库迁移未执行导致待审核任务接口异常）导致整个面板空白
+    const [u, a, t] = await Promise.allSettled([
+      fetchAdminUsers(),
+      fetchPendingAvatars(),
+      fetchPendingTasks(),
+    ]);
+    if (u.status === 'fulfilled') setUsers(u.value.data);
+    else notifyError('加载用户列表失败');
+    if (a.status === 'fulfilled') setAvatars(a.value.data);
+    else notifyError('加载待审核头像失败');
+    if (t.status === 'fulfilled') setPendingTasks(t.value.data);
+    else notifyError('加载待审核任务失败');
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -74,7 +87,7 @@ export default function AdminPanel() {
     try {
       const res = await reviewTask(taskId, action);
       if (res.code === 0) {
-        message.success(action === 'approved' ? '任务已通过' : '任务已拒绝');
+        message.success(action === 'approved' ? '任务已通过' : '任务已拒绝并删除');
         await load();
       } else {
         message.error(res.message || '操作失败');
@@ -105,6 +118,42 @@ export default function AdminPanel() {
       }
     } catch (e: any) {
       message.error(e?.message || '操作失败');
+    }
+  };
+
+  const handleResetPassword = async (u: AdminUser) => {
+    try {
+      const res = await resetUserPassword(u.id);
+      if (res.code === 0) {
+        message.success(`已将「${u.username}」的密码重置为 1111`);
+      } else {
+        message.error(res.message || '操作失败');
+      }
+    } catch (e: any) {
+      message.error(e?.message || '操作失败');
+    }
+  };
+
+  const handleChangePassword = async () => {
+    try {
+      const values = await pwForm.validateFields();
+      if (values.newPassword !== values.confirm) {
+        message.error('两次输入的新密码不一致');
+        return;
+      }
+      const res = await changePassword({
+        oldPassword: values.oldPassword,
+        newPassword: values.newPassword,
+      });
+      if (res.code === 0) {
+        message.success('密码修改成功');
+        setPwModalOpen(false);
+        pwForm.resetFields();
+      } else {
+        message.error(res.message || '修改失败');
+      }
+    } catch {
+      // 校验未通过或失败已提示
     }
   };
 
@@ -175,17 +224,28 @@ export default function AdminPanel() {
       render: (_: unknown, row: AdminUser) => {
         const isOtherAdmin = row.role === 'admin' && row.id !== currentAdminId;
         return (
-          <Popconfirm
-            title={row.id === currentAdminId ? '注销自己的账号？' : '确认注销该用户？'}
-            onConfirm={() => handleDelete(row)}
-            okText="注销"
-            cancelText="取消"
-            disabled={isOtherAdmin}
-          >
-            <Button danger size="small" disabled={isOtherAdmin}>
-              {isOtherAdmin ? '不可注销' : '注销'}
-            </Button>
-          </Popconfirm>
+          <Space size={4}>
+            <Popconfirm
+              title={row.id === currentAdminId ? '注销自己的账号？' : '确认注销该用户？'}
+              onConfirm={() => handleDelete(row)}
+              okText="注销"
+              cancelText="取消"
+              disabled={isOtherAdmin}
+            >
+              <Button danger size="small" disabled={isOtherAdmin}>
+                {isOtherAdmin ? '不可注销' : '注销'}
+              </Button>
+            </Popconfirm>
+            <Popconfirm
+              title={`将「${row.username}」的密码重置为 1111？`}
+              onConfirm={() => handleResetPassword(row)}
+              okText="重置"
+              cancelText="取消"
+              disabled={row.role === 'admin'}
+            >
+              <Button size="small" disabled={row.role === 'admin'}>重置密码</Button>
+            </Popconfirm>
+          </Space>
         );
       },
     },
@@ -203,8 +263,95 @@ export default function AdminPanel() {
       render: (_: unknown, row: PendingTask) => (
         <Space>
           <Button type="primary" size="small" icon={<CheckOutlined />} onClick={() => handleReviewTask(row.id, 'approved')}>通过</Button>
-          <Button danger size="small" icon={<CloseOutlined />} onClick={() => handleReviewTask(row.id, 'rejected')}>拒绝</Button>
+          <Button danger size="small" icon={<CloseOutlined />} onClick={() => handleReviewTask(row.id, 'rejected')}>拒绝并删除</Button>
         </Space>
+      ),
+    },
+  ];
+
+  const tabItems = [
+    {
+      key: 'users',
+      label: '用户管理',
+      children: (
+        <Card title="用户管理" size="small">
+          <Table
+            rowKey="id"
+            size="small"
+            loading={loading}
+            dataSource={users}
+            columns={columns}
+            pagination={false}
+            scroll={{ x: 'max-content' }}
+          />
+        </Card>
+      ),
+    },
+    {
+      key: 'avatars',
+      label: '头像审核',
+      children: (
+        <Card title="头像审核（点击头像可放大查看）" size="small">
+          {avatars.length === 0 ? (
+            <div style={{ color: token.colorTextSecondary, padding: 12 }}>暂无待审核头像</div>
+          ) : (
+            <Space direction="vertical" style={{ width: '100%' }}>
+              {avatars.map((a) => (
+                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
+                  <Avatar
+                    size={48}
+                    src={a.avatarUrl || undefined}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => a.avatarUrl && setPreviewUrl(a.avatarUrl)}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div>{a.username}</div>
+                    <div style={{ fontSize: 12, color: token.colorTextSecondary }}>
+                      ID: {a.id}
+                      <Tooltip title="点击放大">
+                        <EyeOutlined style={{ marginLeft: 8, cursor: 'pointer' }} onClick={() => a.avatarUrl && setPreviewUrl(a.avatarUrl)} />
+                      </Tooltip>
+                    </div>
+                  </div>
+                  <Button type="primary" icon={<CheckOutlined />} onClick={() => handleReviewAvatar(a.id, 'approved')}>通过</Button>
+                  <Button danger icon={<CloseOutlined />} onClick={() => handleReviewAvatar(a.id, 'rejected')}>拒绝</Button>
+                </div>
+              ))}
+            </Space>
+          )}
+        </Card>
+      ),
+    },
+    {
+      key: 'tasks',
+      label: '任务审核',
+      children: (
+        <Card title="任务审核（普通用户当日新增超过 30 个后的部分）" size="small">
+          {pendingTasks.length === 0 ? (
+            <div style={{ color: token.colorTextSecondary, padding: 12 }}>暂无待审核任务</div>
+          ) : (
+            <Table
+              rowKey="id"
+              size="small"
+              dataSource={pendingTasks}
+              columns={taskColumns}
+              pagination={false}
+              scroll={{ x: 'max-content' }}
+            />
+          )}
+        </Card>
+      ),
+    },
+    {
+      key: 'account',
+      label: '我的账号',
+      children: (
+        <Card title="我的账号" size="small">
+          <p style={{ color: token.colorTextSecondary, marginBottom: 12 }}>
+            当前管理员：<b>{localStorage.getItem('username')}</b>
+          </p>
+          <Button icon={<LockOutlined />} onClick={() => setPwModalOpen(true)}>修改密码</Button>
+        </Card>
       ),
     },
   ];
@@ -228,62 +375,14 @@ export default function AdminPanel() {
         </Col>
       </Row>
 
-      <Card title="用户管理" style={{ marginTop: 16 }} size="small">
-        <Table
-          rowKey="id"
-          size="small"
-          loading={loading}
-          dataSource={users}
-          columns={columns}
-          pagination={false}
-          scroll={{ x: 'max-content' }}
-        />
-      </Card>
+      <AdminNav active={activeTab} hover={hoverTab} onActive={setActiveTab} onHover={setHoverTab} />
 
-      <Card title="头像审核（点击头像可放大查看）" style={{ marginTop: 16 }} size="small">
-        {avatars.length === 0 ? (
-          <div style={{ color: token.colorTextSecondary, padding: 12 }}>暂无待审核头像</div>
-        ) : (
-          <Space direction="vertical" style={{ width: '100%' }}>
-            {avatars.map((a) => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
-                <Avatar
-                  size={48}
-                  src={a.avatarUrl || undefined}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => a.avatarUrl && setPreviewUrl(a.avatarUrl)}
-                />
-                <div style={{ flex: 1 }}>
-                  <div>{a.username}</div>
-                  <div style={{ fontSize: 12, color: token.colorTextSecondary }}>
-                    ID: {a.id}
-                    <Tooltip title="点击放大">
-                      <EyeOutlined style={{ marginLeft: 8, cursor: 'pointer' }} onClick={() => a.avatarUrl && setPreviewUrl(a.avatarUrl)} />
-                    </Tooltip>
-                  </div>
-                </div>
-                <Button type="primary" icon={<CheckOutlined />} onClick={() => handleReviewAvatar(a.id, 'approved')}>通过</Button>
-                <Button danger icon={<CloseOutlined />} onClick={() => handleReviewAvatar(a.id, 'rejected')}>拒绝</Button>
-              </div>
-            ))}
-          </Space>
-        )}
-      </Card>
-
-      <Card title="任务审核（普通用户当日新增超过 30 个后的部分）" style={{ marginTop: 16 }} size="small">
-        {pendingTasks.length === 0 ? (
-          <div style={{ color: token.colorTextSecondary, padding: 12 }}>暂无待审核任务</div>
-        ) : (
-          <Table
-            rowKey="id"
-            size="small"
-            dataSource={pendingTasks}
-            columns={taskColumns}
-            pagination={false}
-            scroll={{ x: 'max-content' }}
-          />
-        )}
-      </Card>
+      <div style={{ marginTop: 16 }}>
+        {activeTab === 'users' && tabItems[0].children}
+        {activeTab === 'avatars' && tabItems[1].children}
+        {activeTab === 'tasks' && tabItems[2].children}
+        {activeTab === 'account' && tabItems[3].children}
+      </div>
 
       <Modal
         open={!!previewUrl}
@@ -294,6 +393,95 @@ export default function AdminPanel() {
       >
         {previewUrl && <img src={previewUrl} alt="avatar" style={{ width: '100%', borderRadius: 8 }} />}
       </Modal>
+
+      <Modal
+        title="修改密码"
+        open={pwModalOpen}
+        onOk={handleChangePassword}
+        onCancel={() => setPwModalOpen(false)}
+        destroyOnClose
+      >
+        <Form form={pwForm} layout="vertical">
+          <Form.Item name="oldPassword" label="原密码" rules={[{ required: true, message: '请输入原密码' }]}>
+            <Input.Password placeholder="请输入当前密码" />
+          </Form.Item>
+          <Form.Item name="newPassword" label="新密码" rules={[{ required: true, message: '请输入新密码' }, { min: 4, message: '新密码至少 4 个字符' }]}>
+            <Input.Password placeholder="至少 4 个字符" />
+          </Form.Item>
+          <Form.Item name="confirm" label="确认新密码" rules={[{ required: true, message: '请再次输入新密码' }]}>
+            <Input.Password placeholder="再次输入新密码" />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  );
+}
+
+// 管理员横向导航栏：浅紫色长条 + 超大圆角，深紫罗兰滑动指示条随鼠标/选中项追踪，四项平分整栏
+function AdminNav({
+  active,
+  hover,
+  onActive,
+  onHover,
+}: {
+  active: string;
+  hover: string | null;
+  onActive: (k: string) => void;
+  onHover: (k: string | null) => void;
+}) {
+  const items = [
+    { key: 'users', label: '用户管理' },
+    { key: 'avatars', label: '头像审核' },
+    { key: 'tasks', label: '任务审核' },
+    { key: 'account', label: '我的账号' },
+  ];
+  const shown = hover ?? active;
+  const idx = Math.max(0, items.findIndex((t) => t.key === shown));
+  return (
+    <div
+      style={{
+        position: 'relative',
+        display: 'flex',
+        background: '#ECE3FB',
+        borderRadius: 999,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          left: `${idx * 25}%`,
+          width: '25%',
+          background: '#7B2FBE',
+          borderRadius: 999,
+          transition: 'left .3s cubic-bezier(.4, 0, .2, 1)',
+        }}
+      />
+      {items.map((t) => (
+        <button
+          key={t.key}
+          onMouseEnter={() => onHover(t.key)}
+          onMouseLeave={() => onHover(null)}
+          onClick={() => onActive(t.key)}
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            flex: 1,
+            border: 'none',
+            background: 'transparent',
+            padding: '12px 0',
+            cursor: 'pointer',
+            fontSize: 15,
+            fontWeight: active === t.key ? 700 : 500,
+            color: (hover ?? active) === t.key ? '#fff' : '#5B2A86',
+            transition: 'color .25s',
+          }}
+        >
+          {t.label}
+        </button>
+      ))}
     </div>
   );
 }

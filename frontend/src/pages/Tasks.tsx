@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import {
-  Row, Col, Button, Modal, Form, Input, Select, DatePicker, Switch, InputNumber, Space, message, Spin, Tooltip, theme, Collapse,
+  Row, Col, Button, Modal, Form, Input, Select, DatePicker, Switch, InputNumber, Space, message, Spin, Tooltip, theme, Collapse, Card,
 } from 'antd';
-import { PlusOutlined, ReloadOutlined, BulbOutlined, CloseOutlined } from '@ant-design/icons';
-import { Task, TaskForm, TaskType } from '../services/api';
+import { PlusOutlined, ReloadOutlined, BulbOutlined, CloseOutlined, CaretRightOutlined } from '@ant-design/icons';
+import { Task, TaskForm, TaskType, fetchTodayTaskCount } from '../services/api';
 import { useTasks } from '../hooks/useTasks';
 import TaskCard from '../components/TaskCard';
 import CheckInSuccess from '../components/CheckInSuccess';
@@ -53,6 +53,29 @@ export default function Tasks() {
     setModalOpen(true);
   };
 
+  // 当日新增任务超过 30 个时，再次创建需管理员审核：创建前先询问用户是否确定
+  const confirmIfOverDailyLimit = async (): Promise<boolean> => {
+    try {
+      const res = await fetchTodayTaskCount();
+      const todayCount = res.code === 0 ? res.data.count : 0;
+      if (todayCount >= 30) {
+        return await new Promise<boolean>((resolve) => {
+          Modal.confirm({
+            title: '该任务需管理员审核',
+            content: '您今日新增任务已超过 30 个，该任务创建后需经管理员审核才能正常使用，是否确定创建？',
+            okText: '确定创建',
+            cancelText: '取消',
+            onOk: () => resolve(true),
+            onCancel: () => resolve(false),
+          });
+        });
+      }
+    } catch {
+      // 查询失败不阻断创建
+    }
+    return true;
+  };
+
   const openEdit = (task: Task) => {
     setEditingTask(task);
     form.setFieldsValue({
@@ -78,7 +101,8 @@ export default function Tasks() {
       const values = await form.validateFields();
       const data: TaskForm = {
         ...values,
-        deadline: values.deadline ? values.deadline.toISOString() : undefined,
+        // 用本地时间字符串（不带 Z / 时区偏移）提交，避免 toISOString 转 UTC 导致小时偏移 8 小时
+        deadline: values.deadline ? values.deadline.format('YYYY-MM-DDTHH:mm:ss') : undefined,
         needReviewReminder: !!values.needReviewReminder,
         remindBeforeDays: values.needReviewReminder ? (values.remindBeforeDays ?? 1) : null,
       };
@@ -86,6 +110,8 @@ export default function Tasks() {
         await edit(editingTask.id, data);
         message.success('任务已更新');
       } else {
+        const ok = await confirmIfOverDailyLimit();
+        if (!ok) return; // 用户取消创建
         await add(data);
         // 创建成功 → 弹出庆祝特效，并提示指定文案
         setCreateSuccess({
@@ -102,6 +128,8 @@ export default function Tasks() {
 
   const addSystemTask = async (t: Task) => {
     try {
+      const ok = await confirmIfOverDailyLimit();
+      if (!ok) return; // 用户取消创建
       await add({
         title: t.title,
         topic: t.topic,
@@ -157,6 +185,17 @@ export default function Tasks() {
   // 先按"未完成 / 已完成"分两大块，每块内再按"每天打卡 / 周期打卡 / 一次性"分三阶段，
   // 每阶段内按优先级"紧急 > 高 > 中 > 低"从前往后排列。
   // 技术：用 antd Collapse 实现"文件夹式"可折叠分组（双层嵌套，defaultActiveKey 控制默认展开）。
+  // 自定义展开箭头并用主题色着色，避免暗色模式下箭头看不清（req 6）。
+  const expandIcon = (panelProps: any) => (
+    <CaretRightOutlined
+      rotate={panelProps.expanded ? 90 : 0}
+      style={{ color: token.colorText, fontSize: 14 }}
+    />
+  );
+
+  // 待审核任务（reviewStatus === 'pending'）：不能操作、不计统计，单独成栏放在"已完成"之后
+  const reviewingTasks = tasks.filter((t) => (t.reviewStatus ?? 'none') === 'pending');
+
   const STAGES: { key: TaskType; title: string }[] = [
     { key: 'daily', title: '每天打卡' },
     { key: 'periodic', title: '周期打卡' },
@@ -171,7 +210,7 @@ export default function Tasks() {
     stages: STAGES.map((stage) => ({
       ...stage,
       items: tasks
-        .filter((t) => bucket.pred(t) && (t.type ?? 'once') === stage.key)
+        .filter((t) => bucket.pred(t) && (t.reviewStatus ?? 'none') !== 'pending' && (t.type ?? 'once') === stage.key)
         .sort((a, b) => b.priority - a.priority),
     })).filter((s) => s.items.length > 0),
   })).filter((b) => b.stages.length > 0);
@@ -284,6 +323,7 @@ export default function Tasks() {
       ) : (
         <Collapse
           defaultActiveKey={grouped.map((b) => b.key)}
+          expandIcon={expandIcon}
           items={grouped.map((bucket) => {
             const bucketCount = bucket.stages.reduce((sum, s) => sum + s.items.length, 0);
             const bStyle = BUCKET_STYLE[bucket.key];
@@ -295,10 +335,11 @@ export default function Tasks() {
                   {bucket.title}（{bucketCount}）
                 </span>
               ),
-              children: (
-                <Collapse
-                  defaultActiveKey={bucket.stages.map((s) => s.key)}
-                  items={bucket.stages.map((stage) => {
+                       children: (
+                         <Collapse
+                           defaultActiveKey={bucket.stages.map((s) => s.key)}
+                           expandIcon={expandIcon}
+                           items={bucket.stages.map((stage) => {
                     const sStyle = STAGE_STYLE[stage.key];
                     return {
                       key: stage.key,
@@ -324,6 +365,25 @@ export default function Tasks() {
             };
           })}
         />
+      )}
+
+      {reviewingTasks.length > 0 && (
+        <Card
+          title="待审核"
+          style={{ marginTop: 16, border: `1px solid ${STAGE_STYLE.daily.border}`, borderRadius: 8 }}
+          styles={{ header: { color: STAGE_STYLE.daily.color, fontWeight: 700 } }}
+        >
+          <div style={{ fontSize: 13, color: token.colorTextSecondary, marginBottom: 12 }}>
+            以下任务需管理员审核通过后才能正常使用（打卡/编辑/删除均不可用，且不参与统计）。
+          </div>
+          <Row gutter={[12, 12]}>
+            {reviewingTasks.map((t) => (
+              <Col key={t.id} xs={24} sm={12} lg={8} xl={6}>
+                <TaskCard task={t} pending />
+              </Col>
+            ))}
+          </Row>
+        </Card>
       )}
 
       <Modal
@@ -374,7 +434,7 @@ export default function Tasks() {
           )}
           {taskType === 'once' && (
             <Form.Item name="deadline" label="截止时间">
-              <DatePicker showTime style={{ width: '100%' }} />
+              <DatePicker showTime style={{ width: '100%' }} placement="topLeft" />
             </Form.Item>
           )}
           <Form.Item name="needReviewReminder" label="设置提醒" valuePropName="checked">

@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Form, Input, Button, Checkbox, message, Modal, ConfigProvider, theme } from 'antd';
+import { Form, Input, Button, Checkbox, message, ConfigProvider, theme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import api, { fetchNotices, markNoticesSeen, ReviewNotice } from '../services/api';
+import api, { fetchNotices } from '../services/api';
 import './Login.css';
 
 interface LoginRes {
@@ -23,20 +23,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   // isRegister=false => 登录视图（蒙版居右）；true => 注册视图（蒙版居左）
   const [isRegister, setIsRegister] = useState(false);
-  // 登录完成后需要弹出的审核结果通知（点击任意处关闭）
-  const [reviewNotices, setReviewNotices] = useState<ReviewNotice[] | null>(null);
   const navigate = useNavigate();
-
-  const closeReviewNotices = async () => {
-    setReviewNotices(null);
-    try {
-      await markNoticesSeen();
-    } catch {
-      // 忽略标记失败
-    }
-    const target = localStorage.getItem('role') === 'admin' ? '/admin' : '/';
-    navigate(target, { replace: true });
-  };
 
   const handleSubmit = async (values: { username: string; password: string; isAdmin?: boolean }, mode: 'login' | 'register') => {
     setLoading(true);
@@ -58,12 +45,11 @@ export default function Login() {
           localStorage.setItem('avatarStatus', res.data.avatarStatus || 'none');
           message.success('登录成功');
 
-          // 被审核的普通用户：登录完成后弹出审核结果，点击任意处关闭
+          // 被审核的普通用户：先把未读通知暂存，进入账号页后再弹出（不在登录页弹）
           try {
             const nres = await fetchNotices();
             if (nres.code === 0 && nres.data.length > 0) {
-              setReviewNotices(nres.data);
-              return;
+              localStorage.setItem('pendingReviewNotices', JSON.stringify(nres.data));
             }
           } catch {
             // 通知获取失败不阻塞登录
@@ -80,7 +66,12 @@ export default function Login() {
         message.error(res.message || '操作失败');
       }
     } catch (err: any) {
-      message.error(err?.message || '请求失败');
+      if (mode === 'login') {
+        // 登录失败统一用中文提示（账号或密码错误），不暴露后端原始英文文案
+        message.error('用户名或密码错误');
+      } else {
+        message.error(err?.message || '请求失败');
+      }
     } finally {
       setLoading(false);
     }
@@ -126,6 +117,21 @@ export default function Login() {
             ]}>
               <Input.Password prefix={<LockOutlined />} placeholder="密码" style={{ fontSize: 10 }} />
             </Form.Item>
+            <Form.Item
+              name="confirmPassword"
+              dependencies={['password']}
+              rules={[
+                { required: true, message: '请再次输入密码' },
+                ({ getFieldValue }) => ({
+                  validator(_, value) {
+                    if (!value || getFieldValue('password') === value) return Promise.resolve();
+                    return Promise.reject(new Error('两次输入的密码不一致'));
+                  },
+                }),
+              ]}
+            >
+              <Input.Password prefix={<LockOutlined />} placeholder="确认密码" style={{ fontSize: 10 }} />
+            </Form.Item>
             <Form.Item name="isAdmin" valuePropName="checked">
               <Checkbox style={{ fontSize: 10 }}>注册管理员</Checkbox>
             </Form.Item>
@@ -153,30 +159,7 @@ export default function Login() {
           </div>
         </div>
       </div>
-
-      <Modal
-        open={!!reviewNotices}
-        footer={null}
-        closable={false}
-        maskClosable
-        onCancel={closeReviewNotices}
-        title="审核结果通知"
-        width={420}
-      >
-        <div onClick={closeReviewNotices} style={{ cursor: 'pointer' }}>
-          <p style={{ color: '#888', fontSize: 13, marginBottom: 12 }}>以下为管理员对您提交的审核结果（点击任意处关闭）：</p>
-          {reviewNotices?.map((n) => (
-            <div key={n.id} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-              <span style={{ fontWeight: 600 }}>
-                {n.kind === 'avatar' ? '头像' : `任务《${n.title}》`}
-              </span>
-              <span style={{ marginLeft: 8, color: n.action === 'approved' ? '#52c41a' : '#ff4d4f' }}>
-                {n.action === 'approved' ? '已通过' : '未通过'}
-              </span>
-            </div>
-          ))}
-        </div>
-      </Modal>
     </div>
+    </ConfigProvider>
   );
 }

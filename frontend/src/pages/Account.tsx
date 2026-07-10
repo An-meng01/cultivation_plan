@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Card, Avatar, Tag, Button, Modal, Form, Input, Descriptions, Spin, message, theme } from 'antd';
 import { UserOutlined } from '@ant-design/icons';
-import { fetchProfile, updateProfile, UserProfile } from '../services/api';
+import { fetchProfile, updateProfile, changePassword, UserProfile } from '../services/api';
 import { notifyError } from '../utils/response';
 import AdminPanel from '../components/AdminPanel';
 
@@ -20,7 +20,9 @@ export default function Account() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [pwModalOpen, setPwModalOpen] = useState(false);
   const [form] = Form.useForm();
+  const [pwForm] = Form.useForm();
 
   const load = async () => {
     try {
@@ -64,6 +66,29 @@ export default function Account() {
     }
   };
 
+  const handleChangePassword = async () => {
+    try {
+      const values = await pwForm.validateFields();
+      if (values.newPassword !== values.confirm) {
+        message.error('两次输入的新密码不一致');
+        return;
+      }
+      const res = await changePassword({
+        oldPassword: values.oldPassword,
+        newPassword: values.newPassword,
+      });
+      if (res.code === 0) {
+        message.success('密码修改成功');
+        setPwModalOpen(false);
+        pwForm.resetFields();
+      } else {
+        message.error(res.message || '修改失败');
+      }
+    } catch {
+      // 校验未通过或失败已提示
+    }
+  };
+
   if (loading) return <Spin size="large" style={{ display: 'block', marginTop: 120 }} />;
 
   const statusMap: Record<string, { color: string; text: string }> = {
@@ -91,6 +116,7 @@ export default function Account() {
             <Tag color={status.color} style={{ marginTop: 4 }}>头像{status.text}</Tag>
           </div>
           <Button style={{ marginLeft: 'auto' }} onClick={openEdit}>设置资料</Button>
+          <Button onClick={() => setPwModalOpen(true)}>修改密码</Button>
         </div>
         <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="用户名">{profile?.username}</Descriptions.Item>
@@ -114,6 +140,20 @@ export default function Account() {
       </Modal>
 
       {isAdmin && <AdminPanel />}
+
+      <Modal title="修改密码" open={pwModalOpen} onOk={handleChangePassword} onCancel={() => setPwModalOpen(false)} destroyOnClose>
+        <Form form={pwForm} layout="vertical">
+          <Form.Item name="oldPassword" label="原密码" rules={[{ required: true, message: '请输入原密码' }]}>
+            <Input.Password placeholder="请输入当前密码" />
+          </Form.Item>
+          <Form.Item name="newPassword" label="新密码" rules={[{ required: true, message: '请输入新密码' }, { min: 4, message: '新密码至少 4 个字符' }]}>
+            <Input.Password placeholder="至少 4 个字符" />
+          </Form.Item>
+          <Form.Item name="confirm" label="确认新密码" rules={[{ required: true, message: '请再次输入新密码' }]}>
+            <Input.Password placeholder="再次输入新密码" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

@@ -41,7 +41,10 @@ export default function ClockIn() {
     }
   };
 
-  const pendingTasks = tasks.filter((t) => getCheckInStatus(t, todayRecords).needsCheckIn);
+  // 待审核任务（reviewStatus === 'pending'）不能打卡，从打卡队列中滤除
+  const pendingTasks = tasks.filter(
+    (t) => (t.reviewStatus ?? 'none') !== 'pending' && getCheckInStatus(t, todayRecords).needsCheckIn,
+  );
 
   return (
     <>

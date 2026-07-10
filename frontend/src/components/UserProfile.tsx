@@ -16,7 +16,7 @@ function readFileAsDataURL(file: File): Promise<string> {
 }
 
 export default function UserProfile() {
-  const [avatar, setAvatar] = useState(localStorage.getItem('avatar') || '');
+  const [avatar] = useState(localStorage.getItem('avatar') || '');
   const [avatarStatus, setAvatarStatus] = useState(localStorage.getItem('avatarStatus') || 'none');
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -38,9 +38,9 @@ export default function UserProfile() {
       const dataUrl = await readFileAsDataURL(file as unknown as File);
       const res = await uploadAvatar(dataUrl);
       if (res.code === 0 && res.data) {
-        localStorage.setItem('avatar', res.data.avatarUrl);
+        // 审核期间保留原头像：仅更新审核状态，不替换对外展示的头像
+        // （通过/拒绝由管理员决定，拒绝则回退到原头像，见后端 reviewAvatar）
         localStorage.setItem('avatarStatus', res.data.avatarStatus);
-        setAvatar(res.data.avatarUrl);
         setAvatarStatus(res.data.avatarStatus);
         message.success('头像已提交，等待管理员审核');
         setOpen(false);

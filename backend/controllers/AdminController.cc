@@ -63,15 +63,16 @@ void AdminController::listUsers(const HttpRequestPtr& req,
 void AdminController::listAvatars(const HttpRequestPtr& req,
                                   std::function<void(const HttpResponsePtr&)>&& callback) {
     auto db = app().getDbClient("default");
+    // 审核展示的是用户"准备换的新头像"（暂存在 avatar_pending_url），而非当前对外头像
     auto result = db->execSqlSync(
-        "SELECT id, username, avatar_url, avatar_status FROM users "
+        "SELECT id, username, avatar_pending_url, avatar_status FROM users "
         "WHERE avatar_status = 'pending' ORDER BY id");
     Json::Value arr(Json::arrayValue);
     for (const auto& r : result) {
         Json::Value item;
         item["id"] = r["id"].as<int>();
         item["username"] = r["username"].as<std::string>();
-        item["avatarUrl"] = r["avatar_url"].isNull() ? "" : r["avatar_url"].as<std::string>();
+        item["avatarUrl"] = r["avatar_pending_url"].isNull() ? "" : r["avatar_pending_url"].as<std::string>();
         item["avatarStatus"] = r["avatar_status"].as<std::string>();
         arr.append(item);
     }
@@ -96,11 +97,20 @@ void AdminController::reviewAvatar(const HttpRequestPtr& req,
     }
 
     auto db = app().getDbClient("default");
-    // 技术：参数化 UPDATE 仅把 pending 状态的头像改为 approved/rejected，
-    // 用 $1/$2 占位符防止 SQL 注入（drogon orm 参数绑定）。
-    db->execSqlSync(
-        "UPDATE users SET avatar_status = $1 WHERE id = $2 AND avatar_status = 'pending'",
-        action, userId);
+    // 技术：参数化 UPDATE 仅处理 pending 状态的头像，用 $1/$2 占位符防止 SQL 注入。
+    // 通过：用暂存的新头像替换对外头像；拒绝：回退到原头像（保留原 avatar_url 不变）。
+    if (action == "approved") {
+        db->execSqlSync(
+            "UPDATE users SET avatar_url = avatar_pending_url, avatar_status = 'approved', "
+            "avatar_pending_url = NULL WHERE id = $1 AND avatar_status = 'pending'",
+            userId);
+    } else {
+        db->execSqlSync(
+            "UPDATE users SET avatar_status = CASE WHEN avatar_url IS NULL OR avatar_url = '' "
+            "THEN 'none' ELSE 'approved' END, avatar_pending_url = NULL "
+            "WHERE id = $1 AND avatar_status = 'pending'",
+            userId);
+    }
 
     // 头像审核结果通知被审核用户（下次登录弹出）
     addReviewNotice(db, userId, "avatar", userId, "头像", action);
@@ -150,10 +160,11 @@ void AdminController::reviewTask(const HttpRequestPtr& req,
     }
 
     auto db = app().getDbClient("default");
-    auto res = db->execSqlSync(
-        "UPDATE tasks SET review_status = $1 WHERE id = $2 AND review_status = 'pending' "
-        "RETURNING user_id, title",
-        action, taskId);
+    // 通过：任务转为正常（approved 即生效）；不通过：直接删除该任务
+    std::string sql = (action == "approved")
+        ? "UPDATE tasks SET review_status = 'approved' WHERE id = $1 AND review_status = 'pending' RETURNING user_id, title"
+        : "DELETE FROM tasks WHERE id = $1 AND review_status = 'pending' RETURNING user_id, title";
+    auto res = db->execSqlSync(sql, taskId);
     if (res.empty()) {
         auto resp = HttpResponse::newHttpJsonResponse(fail(404, "任务不存在或已审核"));
         resp->setStatusCode(k404NotFound);
@@ -215,5 +226,33 @@ void AdminController::deleteUser(const HttpRequestPtr& req,
     Json::Value data;
     data["self"] = (operatorId == id);
     auto resp = HttpResponse::newHttpJsonResponse(okData(data));
+    callback(resp);
+}
+
+void AdminController::resetPassword(const HttpRequestPtr& req,
+                                    std::function<void(const HttpResponsePtr&)>&& callback,
+                                    int id) {
+    auto db = app().getDbClient("default");
+    // 只允许重置普通用户密码；不能重置管理员账号（与其他管理员操作保持一致）
+    auto targetRes = db->execSqlSync(
+        "SELECT role FROM users WHERE id = $1", id);
+    if (targetRes.empty()) {
+        auto resp = HttpResponse::newHttpJsonResponse(fail(404, "用户不存在"));
+        resp->setStatusCode(k404NotFound);
+        callback(resp);
+        return;
+    }
+    if (targetRes[0]["role"].as<std::string>() == "admin") {
+        auto resp = HttpResponse::newHttpJsonResponse(fail(403, "不能重置管理员账号密码"));
+        resp->setStatusCode(k403Forbidden);
+        callback(resp);
+        return;
+    }
+
+    // 将密码统一重置为固定初始口令 "1111"
+    db->execSqlSync(
+        "UPDATE users SET password = $1 WHERE id = $2", "1111", id);
+
+    auto resp = HttpResponse::newHttpJsonResponse(okData(Json::Value()));
     callback(resp);
 }

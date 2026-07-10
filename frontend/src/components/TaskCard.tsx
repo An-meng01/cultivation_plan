@@ -19,9 +19,10 @@ interface Props {
   onComplete?: (id: number) => void;
   onEdit?: (task: Task) => void;
   onDelete?: (id: number) => void;
+  pending?: boolean;
 }
 
-export default function TaskCard({ task, onComplete, onEdit, onDelete }: Props) {
+export default function TaskCard({ task, onComplete, onEdit, onDelete, pending }: Props) {
   const overdue = !task.completed && isOverdue(task.deadline);
   const nextDue = getNextDue(task);
   const periodicOverdue = task.type === 'periodic' && !!nextDue && nextDue.isBefore(dayjs());
@@ -39,7 +40,7 @@ export default function TaskCard({ task, onComplete, onEdit, onDelete }: Props) 
         // 左边框按"优先级"上色，让优先级用颜色一眼可辨
         // （逾期/即将到期仍由下方"已逾期/即将到期"标签表示，不冲突）
         borderLeft: `4px solid ${getPriorityBorderColor(task.priority)}`,
-        opacity: task.completed ? 0.65 : 1,
+        opacity: task.completed ? 0.65 : pending ? 0.8 : 1,
       }}
       actions={[
         onComplete && !task.completed ? (
@@ -81,9 +82,10 @@ export default function TaskCard({ task, onComplete, onEdit, onDelete }: Props) 
           </Paragraph>
         )}
         <Space size={4} wrap>
-          <Tag color="magenta">{getTypeLabel(task)}</Tag>
-          <Tag>{task.topic || '未分类'}</Tag>
-          <Tag color={getPriorityColor(task.priority)}>{getPriorityLabel(task.priority)}</Tag>
+           <Tag color="magenta">{getTypeLabel(task)}</Tag>
+           <Tag>{task.topic || '未分类'}</Tag>
+           <Tag color={getPriorityColor(task.priority)}>{getPriorityLabel(task.priority)}</Tag>
+           {pending && <Tag color="gold">待审核</Tag>}
           {task.type === 'periodic' && nextDue && (
             <Tag icon={<ClockCircleOutlined />} color={periodicOverdue ? 'red' : 'default'}>
               {`下次 ${nextDue.format('YYYY-MM-DD')}`}

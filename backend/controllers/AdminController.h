@@ -12,6 +12,7 @@ public:
         ADD_METHOD_TO(AdminController::listPendingTasks, "/api/admin/tasks/pending", drogon::Get, "AdminFilter");
         ADD_METHOD_TO(AdminController::reviewTask, "/api/admin/tasks/review", drogon::Post, "AdminFilter");
         ADD_METHOD_TO(AdminController::deleteUser, "/api/admin/users/{id}", drogon::Delete, "AdminFilter");
+        ADD_METHOD_TO(AdminController::resetPassword, "/api/admin/users/{id}/reset-password", drogon::Post, "AdminFilter");
     METHOD_LIST_END
 
     void listUsers(const drogon::HttpRequestPtr& req,
@@ -27,6 +28,9 @@ public:
     void deleteUser(const drogon::HttpRequestPtr& req,
                     std::function<void(const drogon::HttpResponsePtr&)>&& callback,
                     int id);
+    void resetPassword(const drogon::HttpRequestPtr& req,
+                       std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                       int id);
 };
 
 #endif

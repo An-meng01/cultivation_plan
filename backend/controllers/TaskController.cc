@@ -70,6 +70,22 @@ void TaskController::getAll(
     callback(resp);
 }
 
+void TaskController::todayCount(
+    const HttpRequestPtr& req,
+    std::function<void(const HttpResponsePtr&)>&& callback) {
+    int userId = auth_utils::getUserId(req);
+    auto db = app().getDbClient("default");
+    // 返回当前用户当日已新增的任务数（用于前端判断再次创建是否需管理员审核）
+    auto result = db->execSqlSync(
+        "SELECT COUNT(*) AS c FROM tasks WHERE user_id = $1 AND DATE(created_at) = CURRENT_DATE",
+        userId);
+    int count = result[0]["c"].as<int>();
+    Json::Value data;
+    data["count"] = count;
+    auto resp = HttpResponse::newHttpJsonResponse(ok(data));
+    callback(resp);
+}
+
 void TaskController::getOne(
     const HttpRequestPtr& req,
     std::function<void(const HttpResponsePtr&)>&& callback,

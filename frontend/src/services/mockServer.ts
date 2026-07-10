@@ -295,6 +295,11 @@ export async function mockUpdateProfile(data: { email?: string; phone?: string }
   return { code: 0, message: 'ok' };
 }
 
+export async function mockChangePassword(_data: { oldPassword: string; newPassword: string }) {
+  await delay();
+  return { code: 0, message: 'ok' };
+}
+
 // 管理员：用户列表（Mock）
 export async function mockAdminUsers() {
   await delay();
@@ -367,6 +372,11 @@ export async function mockDeleteUser(_userId: number) {
   return { code: 0, data: { self: false }, message: 'ok' };
 }
 
+export async function mockResetPassword(_userId: number) {
+  await delay();
+  return { code: 0, message: 'ok' };
+}
+
 // 审核结果通知（Mock）
 interface MockNotice {
   id: number;
@@ -391,4 +401,10 @@ export async function mockMarkNoticesSeen() {
   await delay();
   for (const n of mockNotices) n.seen = true;
   return { code: 0, message: 'ok' };
+}
+
+// 当前用户当日新增任务数（Mock）：固定返回 0，便于演示"超过 30"分支由后端判定
+export async function mockTodayTaskCount() {
+  await delay();
+  return { code: 0, data: { count: 0 } };
 }

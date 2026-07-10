@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     created_at    TIMESTAMP DEFAULT NOW(),
     avatar_url    TEXT,
     avatar_status VARCHAR(20) DEFAULT 'none' CHECK (avatar_status IN ('none', 'pending', 'approved', 'rejected')),
+    avatar_pending_url TEXT,
     email         VARCHAR(255),
     phone         VARCHAR(50)
 );

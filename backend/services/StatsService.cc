@@ -15,6 +15,7 @@ Json::Value StatsService::getOverview(int userId) {
         "SELECT COUNT(*) AS total, "
         "SUM(CASE WHEN completed THEN 1 ELSE 0 END) AS done, "
         "topic FROM tasks WHERE user_id = $1 "
+        "AND COALESCE(review_status, 'none') != 'pending' "
         "GROUP BY topic",
         userId
     );
@@ -65,11 +66,13 @@ Json::Value StatsService::getDailyStats(const std::string& start,
         "), added AS ("
         "  SELECT DATE(created_at) AS dt, COUNT(*) AS cnt"
         "  FROM tasks WHERE user_id = $1"
+        "  AND COALESCE(review_status, 'none') != 'pending'"
         "  AND DATE(created_at) BETWEEN $2::date AND $3::date"
         "  GROUP BY dt"
         "), completed AS ("
         "  SELECT DATE(completed_at) AS dt, COUNT(*) AS cnt"
         "  FROM tasks WHERE user_id = $1"
+        "  AND COALESCE(review_status, 'none') != 'pending'"
         "  AND completed_at IS NOT NULL"
         "  AND DATE(completed_at) BETWEEN $2::date AND $3::date"
         "  GROUP BY dt"
@@ -89,7 +92,8 @@ Json::Value StatsService::getDailyStats(const std::string& start,
     {
         auto before = db->execSqlSync(
             "SELECT COUNT(*) AS cnt FROM tasks"
-            " WHERE user_id = $1 AND created_at < $2::date",
+            " WHERE user_id = $1 AND COALESCE(review_status, 'none') != 'pending'"
+            " AND created_at < $2::date",
             userId, start);
         cumulativeTotal = before[0]["cnt"].as<int>();
     }
@@ -119,7 +123,8 @@ Json::Value StatsService::getTopicDistribution(int userId) {
 
     auto result = db->execSqlSync(
         "SELECT topic, COUNT(*) AS cnt "
-        "FROM tasks WHERE user_id = $1 GROUP BY topic",
+        "FROM tasks WHERE user_id = $1 "
+        "AND COALESCE(review_status, 'none') != 'pending' GROUP BY topic",
         userId
     );
 
@@ -141,7 +146,8 @@ Json::Value StatsService::getPriorityDistribution(int userId) {
 
     auto result = db->execSqlSync(
         "SELECT priority, COUNT(*) AS cnt "
-        "FROM tasks WHERE user_id = $1 GROUP BY priority",
+        "FROM tasks WHERE user_id = $1 "
+        "AND COALESCE(review_status, 'none') != 'pending' GROUP BY priority",
         userId
     );
 

@@ -1,7 +1,7 @@
 // 应用根组件：搭建整体布局（侧边栏/顶栏菜单、明暗主题开关、路由出口），并做桌面与移动端适配。
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Layout, Switch, Drawer, Button, theme } from 'antd';
+import { Layout, Switch, Drawer, Button, theme, Modal } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   DashboardOutlined,
@@ -26,6 +26,7 @@ import TrackingNav from './components/TrackingNav';
 import UserProfile from './components/UserProfile';
 import { useTheme } from './theme/ThemeContext';
 import { useIsMobile } from './hooks/useIsMobile';
+import { markNoticesSeen, ReviewNotice } from './services/api';
 
 const { Header, Content, Sider } = Layout;
 
@@ -66,6 +67,31 @@ function AppLayout() {
 
   // 与粉色主题相搭、且与内容区有明显色差的侧边栏背景：亮色用较深的粉，暗色用酒红深粉
   const siderBg = isDark ? '#34182b' : '#ffd9ec';
+
+  // 审核结果通知：登录时已暂存到 localStorage，进入账号页（数据加载完成）后再弹出，
+  // 点击任意处关闭并标记为已读。
+  const [reviewNotices, setReviewNotices] = useState<ReviewNotice[] | null>(null);
+  useEffect(() => {
+    const raw = localStorage.getItem('pendingReviewNotices');
+    if (raw) {
+      try {
+        const list = JSON.parse(raw) as ReviewNotice[];
+        if (Array.isArray(list) && list.length > 0) setReviewNotices(list);
+      } catch {
+        localStorage.removeItem('pendingReviewNotices');
+      }
+    }
+  }, []);
+
+  const closeReviewNotices = async () => {
+    setReviewNotices(null);
+    localStorage.removeItem('pendingReviewNotices');
+    try {
+      await markNoticesSeen();
+    } catch {
+      // 忽略标记失败
+    }
+  };
 
   // 【React 概念：自定义 Hook 复用】
   // 屏幕小于 768px 就认为是在手机上，返回 true。
@@ -183,6 +209,30 @@ function AppLayout() {
           </Routes>
         </Content>
       </Layout>
+
+      <Modal
+        open={!!reviewNotices}
+        footer={null}
+        closable={false}
+        maskClosable
+        onCancel={closeReviewNotices}
+        title="审核结果通知"
+        width={420}
+      >
+        <div onClick={closeReviewNotices} style={{ cursor: 'pointer' }}>
+          <p style={{ color: '#888', fontSize: 13, marginBottom: 12 }}>以下为管理员对您提交的审核结果（点击任意处关闭）：</p>
+          {reviewNotices?.map((n) => (
+            <div key={n.id} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+              <span style={{ fontWeight: 600 }}>
+                {n.kind === 'avatar' ? '头像' : `任务《${n.title}》`}
+              </span>
+              <span style={{ marginLeft: 8, color: n.action === 'approved' ? '#52c41a' : '#ff4d4f' }}>
+                {n.action === 'approved' ? '已通过' : '未通过'}
+              </span>
+            </div>
+          ))}
+        </div>
+      </Modal>
     </Layout>
   );
 }
