@@ -120,6 +120,7 @@ export default function Login() {
             <Form.Item
               name="confirmPassword"
               dependencies={['password']}
+              style={{ marginBottom: 0 }}
               rules={[
                 { required: true, message: '请再次输入密码' },
                 ({ getFieldValue }) => ({
@@ -132,7 +133,7 @@ export default function Login() {
             >
               <Input.Password prefix={<LockOutlined />} placeholder="确认密码" style={{ fontSize: 10 }} />
             </Form.Item>
-            <Form.Item name="isAdmin" valuePropName="checked">
+            <Form.Item name="isAdmin" valuePropName="checked" style={{ marginBottom: 0 }}>
               <Checkbox style={{ fontSize: 10 }}>注册管理员</Checkbox>
             </Form.Item>
             <Form.Item>
