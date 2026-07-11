@@ -36,25 +36,29 @@ flowchart TB
 ```mermaid
 flowchart LR
     subgraph 前端分层
-        V[View 页面] --> C[Component 组件]
+        V[View Pages] --> C[Component 组件]
         C --> H[Hook 数据层]
-        H --> S[Service Axios 封装]
+        H --> S[Service api.ts]
+        S --> M[mockServer]
+        V --> T[Theme ThemeContext]
     end
     subgraph 后端分层
-        CTRL[Controller 控制器] --> SVC[Service 业务层]
+        CTRL[Controller] --> SVC[Service 业务层]
         SVC --> MDL[Model 模型]
-        F[Filter 鉴权] --> CTRL
+        AF[AuthFilter] --> CTRL
+        AD[AdminFilter] --> CTRL
     end
     S -->|REST| CTRL
+    M -->|模拟数据| S
     MDL -->|SQL| DB[(PostgreSQL)]
 ```
 
 **分层职责**
-- **前端**：View 负责页面布局，Component 负责展示，Hook 管理状态，Service 封装 API 调用。
-- **后端 Controller**：解析请求、参数校验、封装 `{code,data,message}` 响应。
-- **后端 Service**：实现业务规则（提醒策略、统计聚合、打卡去重），与 HTTP 解耦。
-- **后端 Model**：与数据库字段一一对应的数据结构及 JSON 序列化。
-- **Filter**：横切鉴权（当前默认 user_id=1，规划 JWT）。
+- **前端**：View 负责页面路由布局，Component 负责展示，Hook 管理状态，Service 封装 API 调用（支持 mockServer 切换）。
+- **后端 Controller**：Task / Clock / Analysis / Auth / Admin / Reminder，解析请求、参数校验、封装 `{code,data,message}` 响应。
+- **后端 Service**：ReminderService（轮询提醒）、StatsService（统计聚合），与 HTTP 解耦。
+- **后端 Model**：Task / ClockRecord，与数据库字段一一对应并提供 JSON 序列化。
+- **Filter**：横切鉴权（AuthFilter Bearer Token 会话校验、AdminFilter 角色校验）。
 
 ---
 
@@ -71,39 +75,61 @@ flowchart LR
         M1[学习任务模块]
         M2[任务提醒模块]
         M3[打卡任务模块]
+        M4[番茄钟模块]
     end
 
     subgraph 辅助功能
         direction TB
-        M4[数据展示模块]
-        M5[任务分析模块]
-        M6[系统基础]
+        M5[数据展示模块]
+        M6[任务分析模块]
+        M7[用户认证模块]
+        M8[管理员模块]
+        M9[系统设置模块]
     end
 
     Root --> 核心功能
     Root --> 辅助功能
 
-    M1 --> M1a[自定义任务创建]
+    M1 --> M1a[三种任务类型<br/>每日/周期/一次性]
     M1 --> M1b[系统推荐任务]
-    M1 --> M1c["任务属性设置<br/>主题/完成时间/优先级/复习提醒"]
+    M1 --> M1c["任务属性设置<br/>主题/优先级/截止时间/复习提醒"]
     M1 --> M1d[任务 CRUD]
+    M1 --> M1e[review_status 任务审核]
 
-    M2 --> M2a["差异化提醒<br/>按优先级+剩余时间"]
-    M2 --> M2b["复习提醒<br/>遗忘曲线(规划)"]
+    M2 --> M2a["remind_before_days<br/>天数提前提醒"]
+    M2 --> M2b["last_reminder_sent<br/>去重机制"]
+    M2 --> M2c[提醒列表/确认提醒]
 
     M3 --> M3a[任务打卡]
     M3 --> M3b[打卡记录查询]
+    M3 --> M3c[庆祝动画]
 
-    M4 --> M4a[进度条展示]
-    M4 --> M4b[统计表展示]
-    M4 --> M4c[打卡日历展示]
+    M4 --> M4a[专注计时]
+    M4 --> M4b[短休/长休]
+    M4 --> M4c[会话计数]
 
-    M5 --> M5a[任务添加统计]
-    M5 --> M5b[完成率统计]
-    M5 --> M5c[优先级分布分析]
+    M5 --> M5a[仪表盘卡片]
+    M5 --> M5b[进度条展示]
+    M5 --> M5c[统计表展示]
+    M5 --> M5d[打卡日历展示]
 
-    M6 --> M6a[侧边栏导航]
-    M6 --> M6b[API 服务]
+    M6 --> M6a[任务添加统计]
+    M6 --> M6b[完成率统计]
+    M6 --> M6c[优先级分布分析]
+
+    M7 --> M7a[注册/登录]
+    M7 --> M7b[Token 会话]
+    M7 --> M7c[个人资料]
+    M7 --> M7d[密码修改]
+    M7 --> M7e[头像上传及审核]
+
+    M8 --> M8a[用户管理]
+    M8 --> M8b[头像审核]
+    M8 --> M8c[任务审核]
+    M8 --> M8d[审核通知]
+
+    M9 --> M9a[暗色主题切换]
+    M9 --> M9b[默认提醒天数设置]
 ```
 
 ---
@@ -435,7 +461,14 @@ classDiagram
         +string topic
         +int priority
         +string source
+        +string type
+        +int intervalValue
+        +string intervalUnit
+        +Timestamp lastCheckIn
         +bool needReviewReminder
+        +int remindBeforeDays
+        +Timestamp lastReminderSent
+        +string reviewStatus
         +bool completed
         +Timestamp deadline
         +Timestamp createdAt
@@ -451,23 +484,62 @@ classDiagram
         +Timestamp checkInTime
         +toJson() Json
     }
+    class User {
+        +int id
+        +string username
+        +string password
+        +string role
+        +string lastDevice
+        +string email
+        +string phone
+        +string avatarUrl
+        +string avatarStatus
+        +string avatarPendingUrl
+        +Timestamp createdAt
+        +toJson() Json
+    }
     class TaskController {
-        +listTasks(HttpReq) void
-        +createTask(HttpReq) void
-        +getTask(id) void
-        +updateTask(id,HttpReq) void
-        +deleteTask(id) void
-        +completeTask(id) void
-        +systemTasks() void
+        +getAll(HttpReq) void
+        +getOne(id) void
+        +create(HttpReq) void
+        +update(id,HttpReq) void
+        +remove(id) void
+        +complete(id) void
+        +getSystem() void
+        +todayCount() void
     }
     class ClockController {
         +clockIn(HttpReq) void
-        +listRecords(HttpReq) void
+        +getRecords(HttpReq) void
     }
     class AnalysisController {
         +overview() void
         +daily(start,end) void
         +priorities() void
+        +health() void
+    }
+    class AuthController {
+        +login(HttpReq) void
+        +reg(HttpReq) void
+        +me(HttpReq) void
+        +uploadAvatar(HttpReq) void
+        +updateProfile(HttpReq) void
+        +changePassword(HttpReq) void
+        +notices(HttpReq) void
+        +markNoticesSeen(HttpReq) void
+    }
+    class AdminController {
+        +listUsers(HttpReq) void
+        +listAvatars(HttpReq) void
+        +reviewAvatar(HttpReq) void
+        +listPendingTasks(HttpReq) void
+        +reviewTask(HttpReq) void
+        +deleteUser(id) void
+        +resetPassword(id) void
+    }
+    class ReminderController {
+        +list(HttpReq) void
+        +ack(id) void
     }
     class ReminderService {
         -map~string,bool~ cache
@@ -483,6 +555,9 @@ classDiagram
     class AuthFilter {
         +doFilter(HttpReq) bool
     }
+    class AdminFilter {
+        +doFilter(HttpReq) bool
+    }
 
     TaskController --> Task : uses
     ClockController --> ClockRecord : uses
@@ -491,16 +566,23 @@ classDiagram
     StatsService --> Task : queries
     StatsService --> ClockRecord : queries
     ReminderService --> Task : queries
+    ReminderController --> Task : queries
+    AuthController --> User : uses
+    AdminController --> User : manages
+    AdminController --> Task : reviews
     AuthFilter <.. TaskController : filters
     AuthFilter <.. ClockController : filters
     AuthFilter <.. AnalysisController : filters
+    AuthFilter <.. AuthController : filters
+    AuthFilter <.. ReminderController : filters
+    AdminFilter <.. AdminController : filters
 ```
 
 **说明**
-- `Task` / `ClockRecord` 为实体模型，提供 JSON 序列化。
-- 三个 Controller 分别处理任务、打卡、分析请求，依赖对应 Model 与 Service。
-- `StatsService` 聚合查询 Task 与 ClockRecord；`ReminderService` 轮询 Task。
-- `AuthFilter` 作为横切过滤器作用于 Controller（规划 JWT）。
+- `Task` / `ClockRecord` / `User` 为实体模型，提供 JSON 序列化。
+- 六个 Controller（Task / Clock / Analysis / Auth / Admin / Reminder）分别处理不同业务域，依赖对应 Model 与 Service。
+- `StatsService` 聚合查询 Task 与 ClockRecord；`ReminderService` 轮询 Task 并写入 reminders 表；`ReminderController` 提供提醒列表查询与确认。
+- `AuthFilter` 通过 Bearer Token 会话校验作用于所有需鉴权的 Controller；`AdminFilter` 额外校验 role='admin' 角色，仅作用于 AdminController。
 
 ### 5.2 前端关键类/组件关系
 
@@ -512,11 +594,28 @@ classDiagram
         +getTask(id) Promise~Task~
         +updateTask(id,body) Promise
         +deleteTask(id) Promise
+        +completeTask(id) Promise
+        +fetchSystemTasks() Promise~Task[]~
+        +fetchTodayTaskCount() Promise~{count}~
         +clockIn(taskId) Promise
         +getRecords(filter) Promise~ClockRecord[]~
         +getOverview() Promise~AnalysisOverview~
         +getDaily(start,end) Promise~DailyStat[]~
         +getPriorities() Promise~PriorityDist[]~
+        +fetchProfile() Promise~UserProfile~
+        +updateProfile(data) Promise
+        +changePassword(data) Promise
+        +uploadAvatar(avatar) Promise
+        +login(username,password) Promise
+        +fetchNotices() Promise~ReviewNotice[]~
+        +markNoticesSeen() Promise
+        +fetchAdminUsers() Promise~AdminUser[]~
+        +fetchPendingAvatars() Promise~PendingAvatar[]~
+        +reviewAvatar(userId,action) Promise
+        +fetchPendingTasks() Promise~PendingTask[]~
+        +reviewTask(taskId,action) Promise
+        +deleteUser(userId) Promise
+        +resetUserPassword(userId) Promise
     }
     class useTasks {
         +tasks: Task[]
@@ -529,13 +628,22 @@ classDiagram
         +records: ClockRecord[]
         +load() void
     }
+    class useIsMobile {
+        +isMobile: boolean
+    }
+    class ThemeContext {
+        +isDark: boolean
+        +toggle() void
+    }
     class Task {
         +id: number
         +title: string
         +priority: 0|1|2|3
         +source: "custom"|"system"
+        +type: "once"|"daily"|"periodic"
         +completed: boolean
         +deadline: string|null
+        +reviewStatus: string
     }
     class ClockRecord {
         +taskId: number
@@ -566,11 +674,33 @@ classDiagram
         +type: "line"|"bar"|"pie"
         +data: any
     }
+    class Login {
+        +handleSubmit() void
+    }
+    class Admin {
+        +handleLogout() void
+    }
+    class Account
+    class Settings
+    class Achievements
+    class Pomodoro
+    class TrackingNav
+    class CheckInSuccess
+    class AdminPanel
+    class UserProfile
     ApiService <.. useTasks : calls
     ApiService <.. useClockRecords : calls
     useTasks --> TaskCard : feeds
+    useTasks --> CheckInSuccess : feeds
     useClockRecords --> CalendarHeatmap : feeds
     StatisticsChart <.. AnalysisPage : used by
+    TrackingNav ..> useIsMobile : uses
+    Login ..> ApiService : calls
+    Admin ..> AdminPanel : renders
+    Admin ..> ThemeContext : uses
+    Account ..> UserProfile : renders
+    Account ..> ApiService : calls
+    Settings ..> ThemeContext : uses
 ```
 
 ---
@@ -587,20 +717,38 @@ classDiagram
 ### 6.2 接口一览
 
 | 方法   | 端点                            | 请求                                            | 说明           |
-| ------ | ------------------------------- | ----------------------------------------------- | -------------- |
-| GET    | `/api/tasks`                    | Query: `topic=/priority=/source=/completed=`   | 任务列表       |
-| POST   | `/api/tasks`                    | `{title,description?,topic?,priority?,needReviewReminder?,deadline?}` | 创建任务 |
-| GET    | `/api/tasks/{id}`               | —                                               | 单个任务       |
-| PUT    | `/api/tasks/{id}`               | `{title?,description?,topic?,priority?,completed?}`           | 更新任务  |
-| DELETE | `/api/tasks/{id}`               | —                                               | 删除任务       |
-| PUT    | `/api/tasks/{id}/complete`      | —                                               | 完成任务       |
-| GET    | `/api/tasks/system`             | —                                               | 系统推荐任务   |
-| POST   | `/api/clock-in`                 | `{taskId}`                                       | 打卡签到       |
-| GET    | `/api/clock-records`            | Query: `taskId/date`                             | 打卡记录       |
-| GET    | `/api/analysis/overview`        | —                                               | 总体概览       |
-| GET    | `/api/analysis/daily`           | Query: `start/end`                               | 每日统计       |
-| GET    | `/api/analysis/priorities`      | —                                               | 优先级分布     |
-| GET    | `/api/health`                   | —                                               | 健康检查       |
+| --- | --- | --- | --- |
+| POST | /api/auth/login | {username, password} | 登录 |
+| POST | /api/auth/register | {username, password} | 注册 |
+| GET | /api/auth/me | - | 当前用户资料 |
+| POST | /api/auth/profile | {email?, phone?} | 更新资料 |
+| POST | /api/auth/password | {oldPassword, newPassword} | 改密 |
+| POST | /api/auth/avatar | {avatar: base64} | 上传头像 |
+| GET | /api/auth/notices | - | 审核通知 |
+| POST | /api/auth/notices/seen | - | 标记通知已读 |
+| GET | /api/tasks | Query | 任务列表 |
+| POST | /api/tasks | {title,...} | 创建任务 |
+| GET | /api/tasks/{id} | - | 单个任务 |
+| PUT | /api/tasks/{id} | {...} | 更新任务 |
+| DELETE | /api/tasks/{id} | - | 删除任务 |
+| PUT | /api/tasks/{id}/complete | - | 完成任务 |
+| GET | /api/tasks/system | - | 系统推荐 |
+| GET | /api/tasks/today-count | - | 今日数量 |
+| POST | /api/clock-in | {taskId} | 打卡 |
+| GET | /api/clock-records | Query | 打卡记录 |
+| GET | /api/analysis/overview | - | 概览 |
+| GET | /api/analysis/daily | Query | 每日统计 |
+| GET | /api/analysis/priorities | - | 优先级 |
+| GET | /api/health | - | 健康检查 |
+| GET | /api/reminders | - | 提醒列表 |
+| POST | /api/reminders/{id}/ack | - | 确认提醒 |
+| GET | /api/admin/users | - | 用户列表 |
+| DELETE | /api/admin/users/{id} | - | 删除用户 |
+| POST | /api/admin/users/{id}/reset-password | - | 重置密码 |
+| GET | /api/admin/avatars | - | 待审头像 |
+| POST | /api/admin/avatars/review | {userId, action} | 审核头像 |
+| GET | /api/admin/tasks/pending | - | 待审任务 |
+| POST | /api/admin/tasks/review | {taskId, action} | 审核任务 |
 
 ### 6.3 错误码
 
@@ -618,13 +766,114 @@ classDiagram
 
 ## 7. 数据库物理设计
 
-### 7.1 表结构（PostgreSQL 15）
+### 7.1 实体关系图
+
+```mermaid
+erDiagram
+    users ||--o{ sessions : has
+    users ||--o{ tasks : owns
+    users ||--o{ clock_records : creates
+    users ||--o{ reminders : triggers
+    users ||--o{ notifications : receives
+    users ||--o{ review_notices : receives
+    tasks ||--o{ clock_records : logs
+    tasks ||--o{ reminders : schedules
+    tasks ||--o{ notifications : generates
+
+    users {
+        int id PK
+        varchar username UK
+        varchar password
+        varchar role "user|admin"
+        varchar last_device "pc|mobile"
+        varchar email
+        varchar phone
+        text avatar_url
+        varchar avatar_status "none|pending|approved|rejected"
+        text avatar_pending_url
+        timestamp created_at
+    }
+    sessions {
+        varchar token PK
+        int user_id FK
+        timestamp created_at
+    }
+    tasks {
+        int id PK
+        int user_id FK
+        varchar title
+        text description
+        varchar topic
+        int priority "0-3"
+        varchar source "custom|system"
+        varchar type "once|daily|periodic"
+        int interval_value
+        varchar interval_unit "day|week|month"
+        timestamp last_check_in
+        bool need_review_reminder
+        int remind_before_days
+        timestamp last_reminder_sent
+        bool completed
+        timestamp deadline
+        varchar review_status "none|pending|approved|rejected"
+        timestamp created_at
+        timestamp completed_at
+    }
+    clock_records {
+        int id PK
+        int user_id FK
+        int task_id FK
+        varchar task_title
+        timestamp check_in_time
+    }
+    reminders {
+        int id PK
+        int user_id FK
+        int task_id FK
+        varchar title
+        timestamp due_at
+        bool acknowledged
+        timestamp created_at
+    }
+    notifications {
+        int id PK
+        int user_id FK
+        int task_id FK
+        varchar channel "email|sms"
+        varchar recipient
+        text content
+        varchar status "pending|sent|failed"
+        timestamp created_at
+    }
+    review_notices {
+        int id PK
+        int user_id FK
+        varchar kind "avatar|task"
+        int ref_id
+        varchar title
+        varchar action "approved|rejected"
+        bool seen
+        timestamp created_at
+    }
+```
+
+### 7.2 表结构（PostgreSQL 15）
 
 | 表             | 字段                 | 类型              | 约束 / 索引                                  |
 | -------------- | -------------------- | ----------------- | -------------------------------------------- |
 | users          | id                   | SERIAL            | PK                                           |
 |                | username             | VARCHAR(100)      | UNIQUE NOT NULL                              |
 |                | password             | VARCHAR(255)      | NOT NULL                                     |
+|                | role                 | VARCHAR(20)       | DEFAULT 'user', CHECK IN ('user','admin')    |
+|                | last_device          | VARCHAR(10)       | DEFAULT 'pc', CHECK IN ('pc','mobile')       |
+|                | email                | VARCHAR(255)      | NULL                                         |
+|                | phone                | VARCHAR(50)       | NULL                                         |
+|                | avatar_url           | TEXT              | NULL                                         |
+|                | avatar_status        | VARCHAR(20)       | DEFAULT 'none', CHECK IN ('none','pending','approved','rejected') |
+|                | avatar_pending_url   | TEXT              | NULL                                         |
+|                | created_at           | TIMESTAMP         | DEFAULT NOW()                                |
+| sessions       | token                | VARCHAR(64)       | PK                                           |
+|                | user_id              | INTEGER           | FK→users NOT NULL  `idx_sessions_user`       |
 |                | created_at           | TIMESTAMP         | DEFAULT NOW()                                |
 | tasks          | id                   | SERIAL            | PK                                           |
 |                | user_id              | INTEGER           | FK→users NOT NULL  `idx_tasks_user_id`       |
@@ -633,9 +882,16 @@ classDiagram
 |                | topic                | VARCHAR(100)      | DEFAULT ''  `idx_tasks_topic`                |
 |                | priority             | INTEGER           | DEFAULT 1, CHECK 0–3                         |
 |                | source               | VARCHAR(20)       | DEFAULT 'custom', CHECK IN ('custom','system')|
+|                | type                 | VARCHAR(20)       | DEFAULT 'once', CHECK IN ('once','daily','periodic') |
+|                | interval_value       | INTEGER           | DEFAULT 1                                    |
+|                | interval_unit        | VARCHAR(10)       | DEFAULT 'day', CHECK IN ('day','week','month') |
+|                | last_check_in        | TIMESTAMP         | NULL                                         |
 |                | need_review_reminder | BOOLEAN           | DEFAULT FALSE                                |
+|                | remind_before_days   | INTEGER           | NULL                                         |
+|                | last_reminder_sent   | TIMESTAMP         | NULL                                         |
 |                | completed            | BOOLEAN           | DEFAULT FALSE  `idx_tasks_completed`         |
 |                | deadline             | TIMESTAMP         | NULL  `idx_tasks_deadline`                   |
+|                | review_status        | VARCHAR(20)       | DEFAULT 'none', CHECK IN ('none','pending','approved','rejected') |
 |                | created_at           | TIMESTAMP         | DEFAULT NOW()                                |
 |                | completed_at         | TIMESTAMP         | NULL                                         |
 | clock_records  | id                   | SERIAL            | PK                                           |
@@ -643,23 +899,74 @@ classDiagram
 |                | task_id              | INTEGER           | FK→tasks ON DELETE SET NULL  `idx_clock_task_id` |
 |                | task_title           | VARCHAR(255)      | NOT NULL                                     |
 |                | check_in_time        | TIMESTAMP         | DEFAULT NOW()                                |
+| reminders      | id                   | SERIAL            | PK                                           |
+|                | user_id              | INTEGER           | FK→users NOT NULL  `idx_reminders_user`      |
+|                | task_id              | INTEGER           | FK→tasks ON DELETE CASCADE                   |
+|                | title                | VARCHAR(255)      | NOT NULL                                     |
+|                | due_at               | TIMESTAMP         | NOT NULL  `idx_reminders_due`                |
+|                | acknowledged         | BOOLEAN           | DEFAULT FALSE                                |
+|                | created_at           | TIMESTAMP         | DEFAULT NOW()                                |
+| notifications  | id                   | SERIAL            | PK                                           |
+|                | user_id              | INTEGER           | FK→users NOT NULL  `idx_notifications_user`  |
+|                | task_id              | INTEGER           | FK→tasks ON DELETE SET NULL                  |
+|                | channel              | VARCHAR(10)       | NOT NULL, CHECK IN ('email','sms')           |
+|                | recipient            | VARCHAR(255)      | NOT NULL                                     |
+|                | content              | TEXT              | NULL                                         |
+|                | status               | VARCHAR(20)       | DEFAULT 'sent', CHECK IN ('pending','sent','failed') |
+|                | created_at           | TIMESTAMP         | DEFAULT NOW()                                |
+| review_notices | id                   | SERIAL            | PK                                           |
+|                | user_id              | INTEGER           | FK→users NOT NULL  `idx_review_notices_user` |
+|                | kind                 | VARCHAR(20)       | NOT NULL, CHECK IN ('avatar','task')         |
+|                | ref_id               | INTEGER           | NULL                                         |
+|                | title                | VARCHAR(255)      | DEFAULT ''                                   |
+|                | action               | VARCHAR(20)       | NOT NULL, CHECK IN ('approved','rejected')   |
+|                | seen                 | BOOLEAN           | DEFAULT FALSE  `idx_review_notices_unseen(user_id,seen)` |
+|                | created_at           | TIMESTAMP         | DEFAULT NOW()                                |
 
-### 7.2 建表语句（节选）
+### 7.3 建表语句（完整）
 
 ```sql
+CREATE TABLE users (
+    id            SERIAL PRIMARY KEY,
+    username      VARCHAR(100) UNIQUE NOT NULL,
+    password      VARCHAR(255) NOT NULL,
+    role          VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+    last_device   VARCHAR(10) DEFAULT 'pc' CHECK (last_device IN ('pc', 'mobile')),
+    created_at    TIMESTAMP DEFAULT NOW(),
+    avatar_url    TEXT,
+    avatar_status VARCHAR(20) DEFAULT 'none' CHECK (avatar_status IN ('none','pending','approved','rejected')),
+    avatar_pending_url TEXT,
+    email         VARCHAR(255),
+    phone         VARCHAR(50)
+);
+
+CREATE TABLE sessions (
+    token       VARCHAR(64) PRIMARY KEY,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at  TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX idx_sessions_user ON sessions(user_id);
+
 CREATE TABLE tasks (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    title VARCHAR(255) NOT NULL,
-    description TEXT DEFAULT '',
-    topic VARCHAR(100) DEFAULT '',
-    priority INTEGER DEFAULT 1 CHECK (priority BETWEEN 0 AND 3),
-    source VARCHAR(20) DEFAULT 'custom' CHECK (source IN ('custom','system')),
-    need_review_reminder BOOLEAN DEFAULT FALSE,
-    completed BOOLEAN DEFAULT FALSE,
-    deadline TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW(),
-    completed_at TIMESTAMP
+    id                    SERIAL PRIMARY KEY,
+    user_id               INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title                 VARCHAR(255) NOT NULL,
+    description           TEXT DEFAULT '',
+    topic                 VARCHAR(100) DEFAULT '',
+    priority              INTEGER DEFAULT 1 CHECK (priority BETWEEN 0 AND 3),
+    source                VARCHAR(20) DEFAULT 'custom' CHECK (source IN ('custom','system')),
+    type                  VARCHAR(20) DEFAULT 'once' CHECK (type IN ('once','daily','periodic')),
+    interval_value        INTEGER DEFAULT 1,
+    interval_unit         VARCHAR(10) DEFAULT 'day' CHECK (interval_unit IN ('day','week','month')),
+    last_check_in         TIMESTAMP,
+    need_review_reminder  BOOLEAN DEFAULT FALSE,
+    remind_before_days    INTEGER,
+    last_reminder_sent    TIMESTAMP,
+    completed             BOOLEAN DEFAULT FALSE,
+    deadline              TIMESTAMP,
+    review_status         VARCHAR(20) DEFAULT 'none' CHECK (review_status IN ('none','pending','approved','rejected')),
+    created_at            TIMESTAMP DEFAULT NOW(),
+    completed_at          TIMESTAMP
 );
 CREATE INDEX idx_tasks_user_id ON tasks(user_id);
 CREATE INDEX idx_tasks_topic ON tasks(topic);
@@ -667,21 +974,62 @@ CREATE INDEX idx_tasks_completed ON tasks(completed);
 CREATE INDEX idx_tasks_deadline ON tasks(deadline);
 
 CREATE TABLE clock_records (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id              SERIAL PRIMARY KEY,
+    user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     task_id         INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
-    task_title VARCHAR(255) NOT NULL,
-    check_in_time TIMESTAMP DEFAULT NOW()
+    task_title      VARCHAR(255) NOT NULL,
+    check_in_time   TIMESTAMP DEFAULT NOW()
 );
 CREATE UNIQUE INDEX uk_clock_task_date ON clock_records(COALESCE(task_id, 0), user_id, DATE(check_in_time));
 CREATE INDEX idx_clock_user_date ON clock_records(user_id, check_in_time);
+CREATE INDEX idx_clock_task_id ON clock_records(task_id);
+
+CREATE TABLE reminders (
+    id           SERIAL PRIMARY KEY,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    task_id      INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+    title        VARCHAR(255) NOT NULL,
+    due_at       TIMESTAMP NOT NULL,
+    acknowledged BOOLEAN DEFAULT FALSE,
+    created_at   TIMESTAMP DEFAULT NOW(),
+    UNIQUE (task_id, due_at)
+);
+CREATE INDEX idx_reminders_user ON reminders(user_id);
+CREATE INDEX idx_reminders_due ON reminders(due_at);
+
+-- 提醒发送记录：PC 端走邮件(email)，移动端走短信(sms)
+CREATE TABLE notifications (
+    id         SERIAL PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    task_id    INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+    channel    VARCHAR(10) NOT NULL CHECK (channel IN ('email', 'sms')),
+    recipient  VARCHAR(255) NOT NULL,
+    content    TEXT,
+    status     VARCHAR(20) DEFAULT 'sent' CHECK (status IN ('pending', 'sent', 'failed')),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX idx_notifications_user ON notifications(user_id);
+
+-- 审核结果通知：管理员审核（头像/任务）后，被审核的普通用户下次登录时弹出结果
+CREATE TABLE review_notices (
+    id         SERIAL PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind       VARCHAR(20) NOT NULL CHECK (kind IN ('avatar', 'task')),
+    ref_id     INTEGER,
+    title      VARCHAR(255) NOT NULL DEFAULT '',
+    action     VARCHAR(20) NOT NULL CHECK (action IN ('approved', 'rejected')),
+    seen       BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX idx_review_notices_user ON review_notices(user_id);
+CREATE INDEX idx_review_notices_unseen ON review_notices(user_id, seen);
 ```
 
-### 7.3 物理设计要点
+### 7.4 物理设计要点
 
 - **存储引擎**：PostgreSQL 默认堆表；所有查询使用参数化占位符 `$1,$2` 防注入。
-- **索引策略**：高频过滤列（user_id/topic/completed/deadline）建单列索引；打卡日历按 `(user_id, check_in_time)` 复合索引加速按月查询。
-- **外键级联**：用户删除级联删除其任务与打卡记录；任务删除时打卡记录保留（task_id 置为 NULL，标题快照仍可查阅）。
+- **索引策略**：高频过滤列（user_id/topic/completed/deadline）建单列索引；打卡日历按 `(user_id, check_in_time)` 复合索引加速按月查询；提醒按 `due_at` 索引加速轮询；未读审核通知按 `(user_id, seen)` 覆盖索引加速查询。
+- **外键级联**：用户删除级联删除其任务、打卡、会话、提醒、通知；任务删除时打卡记录保留（task_id 置为 NULL，标题快照仍可查阅）。
 
 ---
 
@@ -772,7 +1120,119 @@ CREATE INDEX idx_clock_user_date ON clock_records(user_id, check_in_time);
 └────────────────────────────────────────────────────────┘
 ```
 
-### 8.6 界面设计原则
+### 8.6 登录/注册（/login）
+
+```
+┌────────────────────────────────────────────────────────┐
+│                   学习养成计划                          │
+├────────────────────────────────────────────────────────┤
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  ┌──────────────┐  ┌──────────────┐              │  │
+│  │  │    登录       │  │    注册       │              │  │
+│  │  │ 用户名 [____] │  │ 用户名 [____] │              │  │
+│  │  │ 密码   [____] │  │ 密码   [____] │              │  │
+│  │  │ [登录]        │  │ 确认密码 [__] │              │  │
+│  │  │               │  │ [注册管理员]  │              │  │
+│  │  │               │  │ [创建账号]    │              │  │
+│  │  └──────────────┘  └──────────────┘              │  │
+│  │  ┌──────────────────────────────────────────────┐ │  │
+│  │  │  荧光绿蒙版（左右滑动切换 登录/注册 面板）     │ │  │
+│  │  │  "欢迎回来 / 你好，新同学！"                  │ │  │
+│  │  └──────────────────────────────────────────────┘ │  │
+│  └──────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────┘
+```
+
+### 8.7 管理员面板（/admin）
+
+```
+┌────────────────────────────────────────────────────────┐
+│  管理后台      用户名     [退出登录]  [🌙/☀ 主题切换]    │
+├────────────────────────────────────────────────────────┤
+│  ┌────────────────────────────────────────────────────┐│
+│  │  用户管理  │  待审头像  │  待审任务  │  个人信息    ││  ← Tabs
+│  ├────────────────────────────────────────────────────┤│
+│  │  用户管理标签页:                                    ││
+│  │  ┌─────┬────────┬──────┬──────────┬───────────┐   ││
+│  │  │ ID  │ 用户名  │ 角色 │ 邮箱      │ 操作       │   ││
+│  │  ├─────┼────────┼──────┼──────────┼───────────┤   ││
+│  │  │ 1   │ admin  │ admin│ a@b.com  │ [重置密码] │   ││
+│  │  │ 2   │ user1  │ user │ ...      │ [注销][重置]│   ││
+│  │  └─────┴────────┴──────┴──────────┴───────────┘   ││
+│  │  待审头像标签页:  头像预览  → [通过/拒绝]           ││
+│  │  待审任务标签页:  任务详情  → [通过/拒绝]           ││
+│  └────────────────────────────────────────────────────┘│
+└────────────────────────────────────────────────────────┘
+```
+
+### 8.8 番茄钟（/pomodoro）
+
+```
+┌────────────────────────────────────────────────────────┐
+│              🍅 番茄钟                                 │
+│                                                        │
+│              ┌──────────────┐                          │
+│              │   25:00      │                          │
+│              │   ◯ ◯ ◯ ◯   │  ← 会话计数（4个番茄）    │
+│              │  [环形SVG进度条]                         │
+│              │              │                          │
+│              │  [开始] [重置]                          │
+│              └──────────────┘                          │
+│                                                        │
+│              模式: [专注] [短休 5m] [长休 15m]          │
+│                                                        │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  完成一个番茄后推送到提醒列表，可进入短休/长休    │    │
+│  └────────────────────────────────────────────────┘    │
+└────────────────────────────────────────────────────────┘
+```
+
+### 8.9 个人设置（/settings）
+
+```
+┌────────────────────────────────────────────────────────┐
+│  设置                                                    │
+│                                                        │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  主题设置                                        │    │
+│  │  ☀ 浅色模式  /  🌙 暗色模式  [●────────○]       │    │
+│  └────────────────────────────────────────────────┘    │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  提醒设置                                        │    │
+│  │  默认提前提醒天数: [ 1 ] 天                      │    │
+│  └────────────────────────────────────────────────┘    │
+└────────────────────────────────────────────────────────┘
+```
+
+### 8.10 个人中心（/account）
+
+```
+┌────────────────────────────────────────────────────────┐
+│  个人中心                                                │
+├────────────────────────────────────────────────────────┤
+│  ┌────────────────────────────────────────────────┐    │
+│  │  头像: [圆形头像]  [上传头像]                   │    │
+│  │  用户名: zhang3                                 │    │
+│  │  角色: 普通用户 / 管理员                        │    │
+│  │  注册时间: 2026-07-01                          │    │
+│  └────────────────────────────────────────────────┘    │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  资料编辑                                         │    │
+│  │  邮箱: z@example.com  [编辑]                    │    │
+│  │  电话: 138xxxx1234  [编辑]                      │    │
+│  └────────────────────────────────────────────────┘    │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  安全设置                                        │    │
+│  │  密码: ********  [修改密码]                     │    │
+│  └────────────────────────────────────────────────┘    │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  成就/成就墙  (Achievements 页面)              │    │
+│  │  🏅 连续打卡7天  🏅 完成50个任务  ...          │    │
+│  └────────────────────────────────────────────────┘    │
+└────────────────────────────────────────────────────────┘
+```
+
+### 8.11 界面设计原则
 
 - **组件库**：Ant Design 5 统一视觉；优先级以颜色标识（绿/蓝/橙/红）。
 - **即将到期/逾期**：截止时间 <24h 显示橙色「即将到期」，已过期显示红色「已逾期」。

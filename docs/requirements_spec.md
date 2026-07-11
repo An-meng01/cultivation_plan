@@ -94,27 +94,50 @@
 
 ```
 App (Layout: Sidebar + Content)
+├── Login (/login)
+│   ├── 登录面板 + 注册面板 (动画切换遮罩层)
+│   └── 表单验证 (用户名2-10字符/密码4+)
 ├── Dashboard (/)
-│   ├── StatisticCards (总任务数/完成数/完成率)
+│   ├── StatisticCards (总任务数/完成数/完成率/待完成)
 │   ├── ProgressBar (总体进度 + 各主题进度)
 │   ├── StatisticsChart (每日趋势折线图)
 │   └── StatisticsChart (主题分布饼图)
 ├── Tasks (/tasks)
 │   ├── TaskCard[] (任务列表，支持筛选)
-│   │   ├── 优先级色标
+│   │   ├── 优先级色标 (绿/蓝/橙/红)
 │   │   ├── 逾期/即将到期标记
-│   │   └── 已完成状态
-│   ├── 新建/编辑弹窗 (Modal + Form)
-│   └── 系统推荐任务面板
+│   │   └── 已完成状态 + 任务类型标签
+│   ├── 新建/编辑弹窗 (Modal + Form, 含类型选择)
+│   └── 系统推荐任务面板 (5种模板)
 ├── ClockIn (/clock-in)
-│   ├── 待打卡任务列表 (TaskCard[])
-│   └── CalendarHeatmap (打卡日历热力图)
-└── Analysis (/analysis)
-    ├── StatisticCards
-    ├── StatisticsChart (每日趋势折线图)
-    ├── StatisticsChart (每日柱状对比图)
-    ├── StatisticsChart (主题分布饼图)
-    └── 主题完成率表格 + 30日明细表
+│   ├── 待打卡任务列表 (TaskCard[] + 打卡按钮)
+│   ├── CheckInSuccess (打卡成功庆祝动画)
+│   └── CalendarHeatmap (打卡日历热力图, 按月切换)
+├── Analysis (/analysis)
+│   ├── StatisticCards
+│   ├── StatisticsChart (每日趋势折线图)
+│   ├── StatisticsChart (每日柱状对比图)
+│   ├── StatisticsChart (主题分布饼图)
+│   └── 主题完成率表格 + 30日明细表 (Ant Design Table)
+├── Pomodoro (/pomodoro)
+│   ├── SVG 环形倒计时
+│   ├── 模式切换 (专注25min / 短休5min / 长休15min)
+│   └── 会话计数器
+├── Settings (/settings)
+│   ├── 暗色/亮色主题切换 (Switch)
+│   └── 默认提醒天数设置 (Slider)
+├── Account (/account)
+│   ├── 邮箱设置 (脱敏显示前3字符)
+│   ├── 手机设置 (脱敏显示前3字符)
+│   ├── 修改密码
+│   └── 头像上传 (Base64 → 审核流程)
+├── Achievements (/achievements)
+│   └── 学习数据展示
+└── Admin (/admin)
+    ├── AdminPanel
+    │   ├── 用户管理 (列表/删除/重置密码)
+    │   ├── 头像审核 (待审核列表 → 通过/拒绝)
+    │   └── 任务审核 (待审核列表 → 通过/拒绝)
 ```
 
 ### 3.3 数据流图
@@ -166,12 +189,11 @@ Analysis 页面 ──→ 三个并行请求
 - 查看个人学习进度和统计数据
 - 设置复习提醒偏好
 
-### 4.2 系统管理员（规划中）
-
-- 管理系统推荐任务库
-- 查看系统运行状态
-- 用户管理
-- 查看全局统计数据
+### 4.2 系统管理员
+- 管理用户（查看列表、删除、重置密码）
+- 审核用户头像（通过/拒绝，通知用户）
+- 审核超额任务（普通用户日创建超30个时进入待审核）
+- 查看审核通知（用户登录时弹出审核结果）
 
 ---
 
@@ -221,6 +243,14 @@ Analysis 页面 ──→ 三个并行请求
 | deadline         | 时间戳   | 截止时间                               | 可选                 |
 | createdAt        | 时间戳   | 创建时间                               | 自动生成，不可修改   |
 | completedAt      | 时间戳   | 完成时间                               | 设置为完成时自动填入 |
+
+#### FR-003b 任务类型
+| 项目 | 内容 |
+| --- | --- |
+| 描述 | 支持三种任务类型：每日打卡、周期任务、一次性任务 |
+| 每日打卡 | 每天可打卡一次，完成后次日自动重置完成状态 |
+| 周期任务 | 按设定间隔（N天/周/月）周期性出现，到期可打卡 |
+| 一次性任务 | 普通任务，完成后即结束 |
 
 ### 5.3 任务提醒功能
 
@@ -297,7 +327,31 @@ Analysis 页面 ──→ 三个并行请求
 | 展示方式     | 顶部四个统计数字卡片 → 趋势折线图 → 柱状对比图 → 饼图 → 主题完成率表格 → 30 天明细表格 |
 | UI 交互      | Ant Design Table 组件展示明细数据，支持排序；Statistic 组件展示概览数字；Card 组件分组布局 |
 
-### 5.7 API 错误码定义
+#### FR-010 用户注册与登录
+| 项目 | 内容 |
+| --- | --- |
+| 描述 | 用户注册账号、登录系统，基于 Token 会话管理 |
+| 前置条件 | 未登录状态 |
+| 输入 | 注册：用户名(2-10字符)、密码(4+字符)；登录：用户名、密码 |
+| 处理流程 | 注册→校验唯一性→密码哈希→INSERT→返回Token；登录→校验密码→创建session→返回Token |
+| 异常处理 | 用户名重复返回409；用户名/密码错误返回401 |
+| UI交互 | 登录/注册双面板动画切换遮罩层 |
+
+#### FR-011 管理员面板
+| 项目 | 内容 |
+| --- | --- |
+| 描述 | 管理员管理用户、审核头像、审核超额任务 |
+| 功能 | 用户列表/删除/重置密码、待审核头像通过/拒绝、待审核任务通过/拒绝 |
+| 通知机制 | 审核结果写入 review_notices，用户下次登录时弹出 |
+
+#### FR-012 番茄钟
+| 项目 | 内容 |
+| --- | --- |
+| 描述 | 番茄钟计时器，帮助用户专注学习 |
+| 模式 | 专注25min / 短休5min / 长休15min (每4个专注后) |
+| UI交互 | SVG 环形倒计时进度条，开始/暂停/重置按钮，会话计数 |
+
+### 5.7 API 错误码定义（完整 API 列表见 9.2 节）
 
 | code  | 含义               | 说明                                           |
 | ----- | ------------------ | ---------------------------------------------- |
@@ -336,7 +390,7 @@ Analysis 页面 ──→ 三个并行请求
 
 | 编号   | 需求             | 说明                                                     |
 | ------ | ---------------- | -------------------------------------------------------- |
-| NFR-05 | 鉴权机制         | 用户需登录后操作（规划中，当前使用默认用户 ID=1）        |
+| NFR-05 | 鉴权机制         | 基于 Token 会话的登录鉴权，未登录无法访问；AuthFilter 校验 Bearer Token；AdminFilter 校验管理员角色 |
 | NFR-06 | 数据安全         | 数据库密码不硬编码在代码中，通过环境变量注入             |
 | NFR-07 | 输入校验         | 服务端对所有用户输入进行合法性校验，防止 SQL 注入        |
 | NFR-08 | 参数化查询       | 所有 SQL 必须使用参数化占位符，禁止字符串拼接            |
@@ -423,47 +477,102 @@ Analysis 页面 ──→ 三个并行请求
 
 ### 8.1 实体关系图
 
-```
-┌──────────┐       ┌─────────────────┐
-│   Users  │ 1──N  │     Tasks       │
-│          │       │                 │
-│  id (PK) │       │  id (PK)        │
-│  username│       │  user_id (FK)   │
-│  password│       │  title          │
-│  created │       │  description    │
-└──────────┘       │  topic          │
-      │            │  priority       │
-      │ 1          │  source         │
-      │            │  need_review_   │
-      │            │    reminder     │
-      │            │  completed      │
-      │            │  deadline       │
-      │            │  created_at     │
-      │            │  completed_at   │
-      │            └────────┬────────┘
-      │                     │ 1
-      │                     │
-      │            ┌────────┴────────┐
-      │ 1──N       │  ClockRecords   │
-      └────────────┤                 │
-                   │  id (PK)        │
-                   │  user_id (FK)   │
-                   │  task_id (FK)   │
-                   │  task_title     │
-                   │  check_in_time  │
-                   └─────────────────┘
+```mermaid
+erDiagram
+    users ||--o{ sessions : has
+    users ||--o{ tasks : owns
+    users ||--o{ clock_records : records
+    users ||--o{ notifications : receives
+    users ||--o{ review_notices : "has notices"
+    tasks ||--o{ clock_records : "check in"
+    
+    users {
+        int id PK
+        varchar username UK
+        varchar password
+        varchar role "user|admin"
+        varchar last_device "pc|mobile"
+        varchar email
+        varchar phone
+        varchar avatar_url
+        varchar avatar_status "none|pending|approved|rejected"
+        varchar avatar_pending_url
+        timestamp created_at
+    }
+    sessions {
+        int id PK
+        int user_id FK
+        varchar token UK
+        timestamp expires_at
+        timestamp created_at
+    }
+    tasks {
+        int id PK
+        int user_id FK
+        varchar title
+        text description
+        varchar topic
+        int priority "0-3"
+        varchar source "custom|system"
+        varchar type "once|daily|periodic"
+        int interval_value
+        varchar interval_unit "day|week|month"
+        timestamp last_check_in
+        boolean need_review_reminder
+        int remind_before_days
+        timestamp last_reminder_sent
+        boolean completed
+        timestamp deadline
+        varchar review_status "none|pending|approved|rejected"
+        timestamp created_at
+        timestamp completed_at
+    }
+    clock_records {
+        int id PK
+        int user_id FK
+        int task_id FK "nullable"
+        varchar task_title "snapshot"
+        timestamp check_in_time
+    }
+    notifications {
+        int id PK
+        int user_id FK
+        int task_id FK "nullable"
+        varchar channel "email|sms"
+        varchar recipient
+        text content
+        varchar status "pending|sent|failed"
+        timestamp created_at
+    }
+    review_notices {
+        int id PK
+        int user_id FK
+        varchar kind "avatar|task"
+        int ref_id
+        varchar title
+        varchar action "approved|rejected"
+        boolean seen
+        timestamp created_at
+    }
 ```
 
 ### 8.2 数据字典
 
 #### users
 
-| 列名       | 类型          | 约束               | 说明         |
-| ---------- | ------------- | ------------------ | ------------ |
-| id         | SERIAL        | PRIMARY KEY        | 用户 ID      |
-| username   | VARCHAR(100)  | UNIQUE, NOT NULL   | 用户名       |
-| password   | VARCHAR(255)  | NOT NULL           | 密码哈希值   |
-| created_at | TIMESTAMP     | DEFAULT NOW()      | 注册时间     |
+| 列名               | 类型          | 约束                          | 说明                     |
+| ------------------ | ------------- | ----------------------------- | ------------------------ |
+| id                 | SERIAL        | PRIMARY KEY                   | 用户 ID                  |
+| username           | VARCHAR(100)  | UNIQUE, NOT NULL              | 用户名                   |
+| password           | VARCHAR(255)  | NOT NULL                      | 密码哈希值               |
+| role               | VARCHAR(20)   | DEFAULT 'user'                | 角色 (user/admin)        |
+| last_device        | VARCHAR(20)   | DEFAULT ''                    | 最后登录设备 (pc/mobile) |
+| email              | VARCHAR(255)  | 可空                          | 邮箱                     |
+| phone              | VARCHAR(20)   | 可空                          | 手机号                   |
+| avatar_url         | VARCHAR(500)  | 可空                          | 头像 URL                 |
+| avatar_status      | VARCHAR(20)   | DEFAULT 'none'                | 头像状态 (none/pending/approved/rejected) |
+| avatar_pending_url | VARCHAR(500)  | 可空                          | 待审核头像 URL           |
+| created_at         | TIMESTAMP     | DEFAULT NOW()                 | 注册时间                 |
 
 #### tasks
 
@@ -476,9 +585,16 @@ Analysis 页面 ──→ 三个并行请求
 | topic                | VARCHAR(100)  | DEFAULT ''                 | 主题/分类            |
 | priority             | INTEGER       | DEFAULT 1, CHECK(0-3)      | 优先级               |
 | source               | VARCHAR(20)   | DEFAULT 'custom' CHECK(source IN ('custom','system')) | 来源 |
+| type                 | VARCHAR(20)   | DEFAULT 'once' CHECK(type IN ('once','daily','periodic')) | 任务类型 |
+| interval_value       | INTEGER       | 可空                       | 周期间隔值           |
+| interval_unit        | VARCHAR(10)   | 可空                       | 周期单位 (day/week/month) |
+| last_check_in        | TIMESTAMP     | 可空                       | 最近打卡时间         |
 | need_review_reminder | BOOLEAN       | DEFAULT FALSE              | 复习提醒开关         |
+| remind_before_days   | INTEGER       | DEFAULT 1                  | 提前提醒天数         |
+| last_reminder_sent   | TIMESTAMP     | 可空                       | 最近提醒发送时间     |
 | completed            | BOOLEAN       | DEFAULT FALSE              | 完成状态             |
 | deadline             | TIMESTAMP     | 可空                       | 截止时间             |
+| review_status        | VARCHAR(20)   | DEFAULT 'none' CHECK(review_status IN ('none','pending','approved','rejected')) | 审核状态 |
 | created_at           | TIMESTAMP     | DEFAULT NOW()              | 创建时间             |
 | completed_at         | TIMESTAMP     | 可空                       | 完成时间             |
 
@@ -504,35 +620,93 @@ Analysis 页面 ──→ 三个并行请求
 - `idx_clock_user_date ON clock_records(user_id, check_in_time)` — 用户打卡日历查询
 - `idx_clock_task_id ON clock_records(task_id)` — 按任务查询记录
 
+#### sessions
+
+| 列名       | 类型          | 约束                 | 说明           |
+| ---------- | ------------- | -------------------- | -------------- |
+| id         | SERIAL        | PRIMARY KEY          | 会话 ID        |
+| user_id    | INTEGER       | FK → users, NOT NULL | 所属用户       |
+| token      | VARCHAR(255)  | UNIQUE, NOT NULL     | 会话 Token     |
+| expires_at | TIMESTAMP     | NOT NULL             | 过期时间       |
+| created_at | TIMESTAMP     | DEFAULT NOW()        | 创建时间       |
+
+#### notifications
+
+| 列名       | 类型          | 约束                 | 说明                     |
+| ---------- | ------------- | -------------------- | ------------------------ |
+| id         | SERIAL        | PRIMARY KEY          | 通知 ID                  |
+| user_id    | INTEGER       | FK → users           | 所属用户                 |
+| task_id    | INTEGER       | FK → tasks, 可空     | 关联任务                 |
+| channel    | VARCHAR(20)   | NOT NULL             | 通知渠道 (email/sms)     |
+| recipient  | VARCHAR(255)  | NOT NULL             | 接收地址                 |
+| content    | TEXT          | NOT NULL             | 通知内容                 |
+| status     | VARCHAR(20)   | DEFAULT 'pending'    | 状态 (pending/sent/failed) |
+| created_at | TIMESTAMP     | DEFAULT NOW()        | 创建时间                 |
+
+#### review_notices
+
+| 列名       | 类型          | 约束                 | 说明                           |
+| ---------- | ------------- | -------------------- | ------------------------------ |
+| id         | SERIAL        | PRIMARY KEY          | 通知 ID                        |
+| user_id    | INTEGER       | FK → users           | 所属用户                       |
+| kind       | VARCHAR(20)   | NOT NULL             | 类型 (avatar/task)             |
+| ref_id     | INTEGER       | NOT NULL             | 关联 ID (头像ID/任务ID)        |
+| title      | VARCHAR(255)  | DEFAULT ''           | 标题摘要                       |
+| action     | VARCHAR(20)   | NOT NULL             | 审核动作 (approved/rejected)   |
+| seen       | BOOLEAN       | DEFAULT FALSE        | 是否已读                       |
+| created_at | TIMESTAMP     | DEFAULT NOW()        | 创建时间                       |
+
 ---
 
 ## 9. 接口需求
 
 ### 9.1 前端页面路由
 
-| 路由           | 页面     | 功能说明                         |
-| -------------- | -------- | -------------------------------- |
-| `/`            | 仪表盘   | 统计概览 + 进度条 + 趋势图 + 饼图 |
-| `/tasks`       | 任务管理 | 任务 CRUD + 系统推荐             |
-| `/clock-in`    | 打卡签到 | 打卡操作 + 日历热力图            |
-| `/analysis`    | 任务分析 | 多维度统计 + 图表 + 明细表       |
+| 路由           | 页面       | 功能说明                                 |
+| -------------- | ---------- | ---------------------------------------- |
+| /login         | 登录/注册  | 用户认证                                 |
+| /              | 仪表盘     | 统计概览 + 进度条 + 趋势图 + 饼图         |
+| /tasks         | 任务管理   | 任务 CRUD + 系统推荐 + 三种任务类型       |
+| /clock-in      | 打卡签到   | 打卡操作 + 日历热力图 + 庆祝动画          |
+| /analysis      | 任务分析   | 多维度统计 + 图表 + 明细表                |
+| /pomodoro      | 番茄钟     | 专注计时 + 短休/长休 + 会话计数           |
+| /settings      | 系统设置   | 暗色主题 + 默认提醒天数                   |
+| /account       | 个人中心   | 邮箱/手机/密码/头像                      |
+| /achievements  | 成就展示   | 学习数据展示                             |
+| /admin         | 管理面板   | 用户管理 + 头像审核 + 任务审核            |
 
 ### 9.2 后端 RESTful API
 
-| 方法   | 端点                            | 控制器            | 说明             |
-| ------ | ------------------------------- | ----------------- | ---------------- |
-| GET    | `/api/tasks`                    | TaskController    | 获取任务列表     |
-| POST   | `/api/tasks`                    | TaskController    | 创建任务         |
-| GET    | `/api/tasks/{id}`               | TaskController    | 获取单个任务     |
-| PUT    | `/api/tasks/{id}`               | TaskController    | 更新任务         |
-| DELETE | `/api/tasks/{id}`               | TaskController    | 删除任务         |
-| PUT    | `/api/tasks/{id}/complete`      | TaskController    | 完成任务         |
-| GET    | `/api/tasks/system`             | TaskController    | 系统推荐任务     |
-| POST   | `/api/clock-in`                 | ClockController   | 打卡签到         |
-| GET    | `/api/clock-records`            | ClockController   | 打卡记录查询     |
-| GET    | `/api/analysis/overview`        | AnalysisController| 总体概览         |
-| GET    | `/api/analysis/daily`           | AnalysisController| 每日统计         |
-| GET    | `/api/analysis/priorities`      | AnalysisController| 优先级分布       |
+| 方法 | 端点 | 控制器 | 说明 |
+| --- | --- | --- | --- |
+| POST | /api/auth/login | AuthController | 登录 |
+| POST | /api/auth/register | AuthController | 注册 |
+| PUT | /api/auth/profile | AuthController | 更新资料 |
+| PUT | /api/auth/password | AuthController | 修改密码 |
+| GET | /api/auth/notices | AuthController | 审核通知 |
+| POST | /api/avatar/upload | AuthController | 上传头像 |
+| GET | /api/tasks | TaskController | 任务列表 |
+| POST | /api/tasks | TaskController | 创建任务 |
+| GET | /api/tasks/{id} | TaskController | 单个任务 |
+| PUT | /api/tasks/{id} | TaskController | 更新任务 |
+| DELETE | /api/tasks/{id} | TaskController | 删除任务 |
+| PUT | /api/tasks/{id}/complete | TaskController | 完成任务 |
+| GET | /api/tasks/system | TaskController | 系统推荐 |
+| GET | /api/tasks/today-count | TaskController | 今日数量 |
+| POST | /api/clock-in | ClockController | 打卡 |
+| GET | /api/clock-records | ClockController | 打卡记录 |
+| GET | /api/analysis/overview | AnalysisController | 概览 |
+| GET | /api/analysis/daily | AnalysisController | 每日统计 |
+| GET | /api/analysis/priorities | AnalysisController | 优先级 |
+| GET | /api/analysis/health | AnalysisController | 健康检查 |
+| GET | /api/reminders | ReminderController | 提醒列表 |
+| PUT | /api/reminders/{id}/ack | ReminderController | 确认提醒 |
+| GET | /api/admin/users | AdminController | 用户列表 |
+| DELETE | /api/admin/users/{id} | AdminController | 删除用户 |
+| GET | /api/admin/pending-avatars | AdminController | 待审头像 |
+| POST | /api/admin/avatars/{id}/review | AdminController | 审核头像 |
+| GET | /api/admin/pending-tasks | AdminController | 待审任务 |
+| POST | /api/admin/tasks/{id}/review | AdminController | 审核任务 |
 
 完整 API 请求/响应格式详见 [api_design.md](api_design.md)。
 
@@ -652,8 +826,7 @@ Analysis 页面 ──→ 三个并行请求
 
 | 编号   | 项                                   | 说明                                    | 计划处理时间 |
 | ------ | ------------------------------------ | --------------------------------------- | ------------ |
-| TD-01  | 用户鉴权未实现                       | 当前使用默认用户 ID=1                   | V1.1         |
-| TD-02  | SQL 参数化未严格遵循                  | ClockController.getRecords 存在字符串拼接 | V1.1         |
+| TD-01  | 未使用 JWT                          | 当前为 Token 会话方案，非标准 JWT       | V1.1         |
 | TD-03  | 提醒服务使用原生线程                 | 未使用 Drogon 内置定时器，可能引起线程安全问题 | V1.1     |
 | TD-04  | 缺少异常处理中间件                   | 数据库异常可能直接导致 500 响应           | V1.1         |
 | TD-05  | 缺少单元测试                         | 后端和前端均无自动化测试                  | V1.2         |
