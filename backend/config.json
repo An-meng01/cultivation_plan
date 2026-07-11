@@ -21,5 +21,20 @@
       "password": "planner123",
       "size": 10
     }
-  ]
+  ],
+  "custom_config": {
+    "email": {
+      "host": "smtp.qq.com",
+      "port": 465,
+      "username": "3498554977@qq.com",
+      "password": "lknqqkuikashchaa"
+    },
+    "sms": {
+      "secret_id": "",
+      "secret_key": "",
+      "sms_sdk_app_id": "",
+      "sign_name": "",
+      "template_id": ""
+    }
+  }
 }

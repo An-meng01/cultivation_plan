@@ -15,6 +15,11 @@ void ReminderService::setNotifyCallback(NotifyFn fn) {
     notify_ = std::move(fn);
 }
 
+void ReminderService::setSenders(::utils::EmailSender* email, ::utils::SmsSender* sms) {
+    emailSender_ = email;
+    smsSender_ = sms;
+}
+
 void ReminderService::start(int intervalSeconds) {
     if (running_) return;
     running_ = true;
@@ -27,8 +32,8 @@ void ReminderService::stop() {
 }
 
 void ReminderService::loop(int intervalSeconds) {
-    // 技术：独立后台线程（std::thread）+ std::this_thread::sleep_for 实现定时轮询，
-    // 不阻塞主线程的 HTTP 请求处理。running_ 为 atomic<bool>，stop() 时安全退出。
+    /* 后台轮询线程：std::thread 创建独立执行流，不阻塞 drogon 主线程。
+     * running_ 为 std::atomic<bool>，确保跨线程安全终止。 */
     while (running_) {
         checkDueTasks();
         std::this_thread::sleep_for(std::chrono::seconds(intervalSeconds));
@@ -39,12 +44,11 @@ void ReminderService::checkDueTasks() {
     auto db = app().getDbClient("default");
     if (!db) return;
 
-    // 技术：PostgreSQL 时间/区间运算
-    //  - (remind_before_days || ' days')::interval 把天数拼成间隔
-    //  - NOW() + interval 算出"截止前 N 天"的时间窗
-    //  - last_reminder_sent < NOW() - '23 hours' 做去重，避免重复提醒
-    // 取出所有开启提醒、且进入"提前 N 天"窗口、且近期未提醒过的任务，
-    // 关联用户邮箱/电话/设备用于选择提醒渠道。
+    /* SQL 查询技术：PostgreSQL 时间/区间运算
+     *   - (t.remind_before_days || ' days')::interval 将天数转为 PG 时间区间
+     *   - NOW() + interval 算出"截止前 N 天"的时间窗口
+     *   - last_reminder_sent < NOW() - INTERVAL '23 hours' 做 23 小时去重
+     * 返回所有满足条件且近期未发送过提醒的任务，关联用户联系方式用于渠道发送。 */
     auto result = db->execSqlSync(
         "SELECT t.id AS tid, t.title, t.deadline, t.remind_before_days, t.user_id, "
         "       u.email, u.phone, u.last_device "
@@ -65,43 +69,72 @@ void ReminderService::checkDueTasks() {
         std::string phone = r["phone"].isNull() ? "" : r["phone"].as<std::string>();
         std::string device = r["last_device"].as<std::string>();
 
-        // 渠道选择（按设备分渠道）：移动端走短信，PC 端走邮件；无对应联系方式则跳过
-        // 技术：依据 users.last_device 字段分流，对应联系方式取自 email / phone 列。
+        /* 渠道选择策略：统一使用邮件发送到用户邮箱，
+         * 手机端 QQ 邮箱 App 同样能收到推送通知。
+         * 无需区分 PC 与移动端，也无需短信网关资质。 */
         std::string channel, recipient;
-        if (device == "mobile" && !phone.empty()) {
-            channel = "sms";
-            recipient = phone;
-        } else if (!email.empty()) {
+        if (!email.empty()) {
             channel = "email";
             recipient = email;
         } else {
             continue;
         }
 
+        /* 提醒内容：为配合短信长度限制，尽量精简 */
         std::string content = "【学习养成计划】提醒：任务《" + title + "》即将到期，请及时处理！";
 
-        // 技术：提醒发送记录持久化到 notifications 表（channel/recipient/content/status）。
-        // 真实环境应在此调用邮件(SMTP)/短信(网关)服务并据返回更新 status；
-        // 当前无网关凭据，以"落库 + 日志"模拟发送（见下方 LOG_INFO）。
+        /* ── 实际发送 ──
+         *   根据渠道分别调用 EmailSender 或 SmsSender 的 send() 方法。
+         *   这两个发送器由 main.cc 根据 config.json 初始化后注入。
+         *   发送结果决定 notifications 表的 status：成功→'sent'，失败→'failed'。 */
+        bool sendOk = false;
+        std::string sendMsg;
+
+        if (channel == "email" && emailSender_ && emailSender_->isReady()) {
+            /* SMTP 邮件发送：通过 libcurl/OpenSSL 连接 QQ 邮箱 SMTP 服务器 */
+            auto result = emailSender_->send(recipient, "任务提醒", content);
+            sendOk = result.success;
+            sendMsg = result.message;
+        } else if (channel == "sms" && smsSender_) {
+            /* 短信发送：调用腾讯云短信 API（已配置时）；否则模拟模式 */
+            auto result = smsSender_->send(recipient, content);
+            sendOk = result.success;
+            sendMsg = result.message;
+        } else {
+            /* 发送器未就绪：以模拟模式降级，仅落库 + 日志 */
+            sendOk = true;
+            sendMsg = "模拟模式：发送器未配置";
+        }
+
+        /* 记录发送结果到 notifications 表
+         * 技术：无论发送成功或失败均持久化，便于排查与补发。 */
+        std::string status = sendOk ? "sent" : "failed";
         db->execSqlSync(
             "INSERT INTO notifications (user_id, task_id, channel, recipient, content, status) "
-            "VALUES ($1, $2, $3, $4, $5, 'sent')",
-            uid, taskId, channel, recipient, content);
+            "VALUES ($1, $2, $3, $4, $5, $6)",
+            uid, taskId, channel, recipient, content, status);
 
-        // 保留历史提醒记录（与已有 reminders 表兼容）
+        /* 保留历史提醒记录 */
         db->execSqlSync(
             "INSERT INTO reminders (user_id, task_id, title, due_at) "
             "VALUES ($1, $2, $3, $4::timestamp) "
             "ON CONFLICT (task_id, due_at) DO NOTHING",
             uid, taskId, title, r["deadline"].as<std::string>());
 
+        /* 更新 last_reminder_sent 时间戳，避免 23 小时内重复发送 */
         db->execSqlSync("UPDATE tasks SET last_reminder_sent = NOW() WHERE id = $1", taskId);
 
         if (notify_) {
             notify_(taskId, title, channel);
         }
-        LOG_INFO << "提醒已发送(" << channel << ")-> " << recipient
-                 << " : 任务 #" << taskId << " 《" << title << "》";
+
+        if (sendOk) {
+            LOG_INFO << "提醒已发送(" << channel << ")-> " << recipient
+                     << " : 任务 #" << taskId << " 《" << title << "》";
+        } else {
+            LOG_WARN << "提醒发送失败(" << channel << ")-> " << recipient
+                     << " : 任务 #" << taskId << " 《" << title << "》原因: " << sendMsg;
+        }
     }
 }
 

@@ -21,25 +21,29 @@ export default function Admin() {
     navigate('/login', { replace: true });
   };
 
+  const headerBg = isDark ? 'rgba(30,30,40,0.85)' : '#34182b';
+  const contentBg = isDark ? 'rgba(20,20,30,0.82)' : 'rgba(255,255,255,0.87)';
+  const textColor = isDark ? 'rgba(255,255,255,0.85)' : '#fff';
+
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout className="layout-root admin-layout" style={{ minHeight: '100vh' }}>
       <Header
         style={{
-          background: '#34182b',
+          background: headerBg,
           padding: '0 24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
         }}
       >
-        <span style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>管理后台</span>
+        <span style={{ fontSize: 18, fontWeight: 700, color: textColor }}>管理后台</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ color: '#fff' }}>{localStorage.getItem('username')}</span>
+          <span style={{ color: textColor }}>{localStorage.getItem('username')}</span>
           <Button onClick={handleLogout}>退出登录</Button>
           <Switch checked={isDark} onChange={toggle} checkedChildren="🌙" unCheckedChildren="☀" />
         </div>
       </Header>
-      <Content style={{ margin: 24, background: token.colorBgContainer, borderRadius: 12, minHeight: 'calc(100vh - 48px - 48px)', padding: 24 }}>
+      <Content style={{ margin: 24, background: contentBg, borderRadius: 12, minHeight: 'calc(100vh - 48px - 48px)', padding: 24 }}>
         <AdminPanel />
       </Content>
     </Layout>

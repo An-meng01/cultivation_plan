@@ -24,6 +24,7 @@ import Admin from './pages/Admin';
 import Login from './pages/Login';
 import TrackingNav from './components/TrackingNav';
 import UserProfile from './components/UserProfile';
+import ClockDisplay from './components/ClockDisplay';
 import { useTheme } from './theme/ThemeContext';
 import { useIsMobile } from './hooks/useIsMobile';
 import { markNoticesSeen, ReviewNotice } from './services/api';
@@ -67,6 +68,10 @@ function AppLayout() {
 
   // 与粉色主题相搭、且与内容区有明显色差的侧边栏背景：亮色用较深的粉，暗色用酒红深粉
   const siderBg = isDark ? '#34182b' : '#ffd9ec';
+  const glassBg = isDark ? 'rgba(30,30,45,0.82)' : 'rgba(255,255,255,0.85)';
+  const titleColor = isDark ? 'rgba(255,255,255,0.9)' : '#000';
+  const titleShadow = isDark ? '0 1px 6px rgba(0,0,0,0.4)' : '0 1px 6px rgba(255,255,255,0.4)';
+  const headerBorder = isDark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.06)';
 
   // 审核结果通知：登录时已暂存到 localStorage，进入账号页（数据加载完成）后再弹出，
   // 点击任意处关闭并标记为已读。
@@ -110,7 +115,7 @@ function AppLayout() {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh', background: token.colorBgLayout }}>
+    <Layout className="layout-root" style={{ minHeight: '100vh' }}>
       {/* 桌面端：保留左侧 Sider 侧边栏（手机端不渲染，改用顶部抽屉） */}
       {!isMobile && (
         <Sider
@@ -142,12 +147,12 @@ function AppLayout() {
       <Layout>
         <Header
           style={{
-            background: token.colorBgContainer,
+            background: glassBg,
             padding: isMobile ? '0 12px' : '0 24px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            borderBottom: `1px solid ${token.colorBorderSecondary}`,
+            borderBottom: headerBorder,
           }}
         >
           {/* 左边：手机显示汉堡按钮，桌面显示标题 */}
@@ -157,7 +162,7 @@ function AppLayout() {
               // 只在手机时渲染这个按钮；点它打开抽屉。
               <Button type="text" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} />
             )}
-            <span style={{ fontSize: 18, fontWeight: 600 }}>学习养成计划</span>
+            <span style={{ fontSize: 18, fontWeight: 600, color: titleColor, textShadow: titleShadow }}>学习养成计划</span>
           </div>
 
           {/* 右边：头像+用户名 + 退出登录 + 暗色主题开关 */}
@@ -194,8 +199,8 @@ function AppLayout() {
           </div>
         </Drawer>
 
-        {/* 内容区：用白底与粉色侧边栏形成明显区分 */}
-        <Content style={{ margin: isMobile ? 12 : 24, background: token.colorBgContainer, borderRadius: 12, minHeight: 'calc(100vh - 48px - 48px)' }}>
+        {/* 内容区：与侧边栏形成明显区分 */}
+        <Content style={{ margin: isMobile ? 12 : 24, background: glassBg, borderRadius: 12, minHeight: 'calc(100vh - 48px - 48px)' }}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/tasks" element={<Tasks />} />
@@ -245,10 +250,13 @@ function App() {
 
   if (!token) {
     return (
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <>
+        <ClockDisplay />
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </>
     );
   }
 
