@@ -1,5 +1,5 @@
 // 管理员前端：登录角色为 admin 时进入，包含顶栏与退出/主题切换，内容区渲染管理员面板。
-import { Layout, Button, Switch, theme } from 'antd';
+import { Layout, Button, Switch } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import AdminPanel from '../components/AdminPanel';
 import { useTheme } from '../theme/ThemeContext';
@@ -9,7 +9,6 @@ const { Header, Content } = Layout;
 export default function Admin() {
   const navigate = useNavigate();
   const { isDark, toggle } = useTheme();
-  const { token } = theme.useToken();
 
   const handleLogout = () => {
     localStorage.removeItem('token');
