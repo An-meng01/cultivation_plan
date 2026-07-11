@@ -51,18 +51,18 @@
 
 ## 技术栈
 
-| 层级 | 技术 |
-| --- | --- |
-| 前端框架 | React 18 + TypeScript |
-| UI 组件库 | Ant Design 5 |
-| 图表库 | Recharts 2 |
-| 构建工具 | Vite 5 |
-| HTTP 客户端 | Axios 1.7（拦截器统一处理） |
-| 日期处理 | Dayjs 1.11 |
-| 后端框架 | Drogon (C++17) |
-| 数据库 | PostgreSQL 15 |
-| 容器编排 | Docker Compose 3.8 |
-| 反向代理 | Nginx（生产环境） |
+| 层级 | 技术 | 选择原因与优势 |
+| --- | --- | --- |
+| 前端框架 | React 18 + TypeScript | 组件化开发、虚拟 DOM 高效渲染、Hooks 状态逻辑复用；TypeScript 静态类型检查减少运行时错误，大型项目可维护性强 |
+| UI 组件库 | Ant Design 5 | 企业级组件生态完整（Form/Table/Modal/Calendar），开箱即用减少重复造轮子；支持 CSS-in-JS 主题定制和 darkAlgorithm 暗色模式 |
+| 图表库 | Recharts 2 | 基于 React 组件化声明式 API，与 Ant Design 搭配自然；ResponsiveContainer 自动适配容器宽高，支持折线/柱状/饼图等常见图表 |
+| 构建工具 | Vite 5 | 原生 ES Module 开发服务器秒级冷启动、HMR 极速热更新；Rollup 生产构建 Tree-shaking 优化，比 Webpack 开发体验提升明显 |
+| HTTP 客户端 | Axios 1.7 | 拦截器机制统一注入 Token 和错误处理；请求/响应转换、超时控制、取消请求等内置功能，减少样板代码 |
+| 日期处理 | Dayjs 1.11 | 2KB 轻量级，API 与 Moment.js 兼容但体积仅 1/30；链式调用、不可变操作、插件化设计（按需加载时区/相对时间等） |
+| 后端框架 | Drogon (C++17) | 高性能异步非阻塞，单机并发能力远超 Node.js/Python；跨平台（Windows/Linux/macOS），统一语言栈方便 C++ 开发者维护 |
+| 数据库 | PostgreSQL 15 | 成熟的关系型数据库，支持复杂聚合查询（窗口函数 / FILTER）、JSONB 灵活存储；ACID 事务保证数据一致性，pg_isready 健康检查便于容器编排 |
+| 容器编排 | Docker Compose 3.8 | 三服务一键编排（PostgreSQL + Backend + Frontend），healthcheck 控制启动顺序；环境变量注入配置，多阶段构建减小生产镜像体积 |
+| 反向代理 | Nginx | 高性能反向代理，`/api` 路径透传到后端 8080；SPA 路由 `try_files` 处理前端 history 模式；配置简单稳定，生产环境标配 |
 
 ---
 
